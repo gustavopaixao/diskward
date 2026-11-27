@@ -23,6 +23,10 @@ struct OverviewView: View {
                              caption: "\(model.selection.count) items · safe items are pre-selected")
                 }
 
+                if let growth = model.growth(), !growth.grown.isEmpty || growth.freeDelta != 0 {
+                    GrowthSummary(growth: growth) { route = .changes }
+                }
+
                 if let disk = model.disk, let other = model.unexplainedUsed, !model.isScanning {
                     UsageBreakdown(disk: disk, reclaimable: model.totalReclaimable, other: other) {
                         route = .explorer

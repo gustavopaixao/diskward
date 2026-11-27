@@ -32,13 +32,41 @@ final class AppModel {
     var isCleaning = false
     var lastReport: CleanReport?
 
+    /// Past full scans, oldest first (for "What Changed").
+    var history: [ScanSnapshot] = []
+
     private var scanTask: Task<Void, Never>?
     private let cleaner = Cleaner()
+    private let scanHistory = ScanHistory()
 
     var isScanning: Bool { states.contains { $0.status == .scanning } }
 
     init() {
         states = ProviderRegistry.all(nodeModulesRoots: AppSettings.nodeModulesRoots).map { ProviderState(provider: $0) }
+        history = scanHistory.load()
+    }
+
+    /// Growth between the latest scan and the one closest to `age` before it.
+    func growth(age: TimeInterval = 0) -> Growth? {
+        guard let latest = history.last,
+              let base = ScanHistory.baseline(in: history, for: latest, age: age)
+        else { return nil }
+        return ScanHistory.growth(from: base, to: latest)
+    }
+
+    /// Saves a snapshot of a completed full scan.
+    private func recordSnapshot() {
+        refreshDisk()
+        guard let disk else { return }
+        let done = states.filter { $0.status == .done }
+            .map { (id: $0.id, title: $0.provider.title, items: $0.items) }
+        guard !done.isEmpty else { return }
+        let history = scanHistory
+        let snapshot = ScanSnapshot(date: Date(), disk: disk, providers: done)
+        Task.detached(priority: .utility) {
+            let updated = history.append(snapshot)
+            await MainActor.run { self.history = updated }
+        }
     }
 
     // MARK: Derived values
@@ -75,7 +103,9 @@ final class AppModel {
                     group.addTask { await self.scan(provider) }
                 }
             }
+            guard !Task.isCancelled else { return }
             lastScan = Date()
+            recordSnapshot()
         }
     }
 

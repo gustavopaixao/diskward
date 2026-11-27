@@ -400,3 +400,58 @@ func fixture(_ name: String) throws -> Data {
         #expect(FS.exists(attachments))
     }
 }
+
+@Suite struct HistoryTests {
+    func item(_ id: String, _ provider: String, _ size: Int64) -> CleanupItem {
+        CleanupItem(id: id, providerID: provider, title: id, size: size, action: .trash([]))
+    }
+
+    func snapshot(_ date: Date, free: Int64, _ providers: [(String, [CleanupItem])]) -> ScanSnapshot {
+        ScanSnapshot(date: date, disk: DiskInfo(total: 1_000, available: free),
+                     providers: providers.map { (id: $0.0, title: $0.0.capitalized, items: $0.1) })
+    }
+
+    @Test func growthComparesOnlySharedProvidersAndRanksItems() {
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        let old = snapshot(t0, free: 500, [
+            ("derived", [item("a", "derived", 100), item("b", "derived", 50)]),
+            ("docker", [item("img", "docker", 300)]),
+            ("trash", [item("t", "trash", 10)]), // missing from the new scan (e.g. no access)
+        ])
+        let new = snapshot(t0.addingTimeInterval(86_400), free: 300, [
+            ("derived", [item("a", "derived", 400), item("b", "derived", 50), item("c", "derived", 80)]),
+            ("docker", [item("img", "docker", 200)]),
+        ])
+        let growth = ScanHistory.growth(from: old, to: new)
+        #expect(growth.freeDelta == -200)
+        #expect(growth.providers.map(\.id) == ["derived", "docker"])
+        #expect(growth.providers[0].delta == 380)
+        #expect(growth.shrunk.map(\.id) == ["docker"])
+        #expect(growth.items.map(\.id) == ["a", "c"]) // b unchanged, img shrank
+        #expect(growth.items[1].before == 0)          // new item
+    }
+
+    @Test func appendReplacesRecentAndPicksBaselineByAge() throws {
+        let home = try TempHome()
+        let history = ScanHistory(directory: home.url, minimumSpacing: 600, keep: 3)
+        let t0 = Date(timeIntervalSince1970: 2_000_000)
+        history.append(snapshot(t0, free: 1, []))
+        history.append(snapshot(t0.addingTimeInterval(60), free: 2, []))       // replaces previous (too close)
+        history.append(snapshot(t0.addingTimeInterval(86_400), free: 3, []))
+        history.append(snapshot(t0.addingTimeInterval(8 * 86_400), free: 4, []))
+        let all = history.append(snapshot(t0.addingTimeInterval(9 * 86_400), free: 5, []))
+        #expect(all.map(\.free) == [3, 4, 5]) // keep = 3
+
+        let latest = all.last!
+        #expect(ScanHistory.baseline(in: all, for: latest, age: 0)?.free == 4)
+        #expect(ScanHistory.baseline(in: all, for: latest, age: 7 * 86_400)?.free == 3)
+        #expect(ScanHistory.baseline(in: all, for: latest, age: 30 * 86_400) == nil)
+        #expect(history.load().map(\.free) == [3, 4, 5]) // persisted
+    }
+
+    @Test func signedBytes() {
+        #expect(SignedBytes.string(0) == "±0")
+        #expect(SignedBytes.string(1_000_000_000).hasPrefix("+"))
+        #expect(SignedBytes.string(-1_000_000_000).hasPrefix("−"))
+    }
+}

@@ -23,6 +23,13 @@ struct OverviewView: View {
                              caption: "\(model.selection.count) items · safe items are pre-selected")
                 }
 
+                let top = Array(model.allItems.sorted { $0.size > $1.size }.prefix(5))
+                if !top.isEmpty {
+                    TopPlacesRow(items: top, diskUsed: model.disk?.used ?? 0) { item in
+                        route = .provider(item.providerID)
+                    }
+                }
+
                 if let growth = model.growth(), !growth.grown.isEmpty || growth.freeDelta != 0 {
                     GrowthSummary(growth: growth) { route = .changes }
                 }
@@ -172,5 +179,98 @@ struct UsageBreakdown: View {
             RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 10, height: 10)
             Text("\(title) \(ByteFormat.string(value))").monospacedDigit()
         }
+    }
+}
+
+/// The five largest items found by the scan, as a row of cards.
+struct TopPlacesRow: View {
+    @Environment(AppModel.self) private var model
+    let items: [CleanupItem]
+    let diskUsed: Int64
+    let open: (CleanupItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Biggest space users").font(.title3.bold())
+                if model.isScanning { ProgressView().controlSize(.small) }
+                Spacer()
+                Text("Top \(items.count) items found by the scan").font(.caption).foregroundStyle(.secondary)
+            }
+            // Equal-width cards that fill the row and resize with the window. When five
+            // don't fit at a readable size, fall back to 3 and then 2 columns.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 12) { cards(minWidth: 130) }
+                    .fixedSize(horizontal: false, vertical: true) // same height for every card
+                columns(3)
+                columns(2)
+            }
+        }
+    }
+}
+
+extension TopPlacesRow {
+    @ViewBuilder func cards(minWidth: CGFloat) -> some View {
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            Button { open(item) } label: {
+                TopPlaceCard(rank: index + 1, item: item,
+                             source: model.state(for: item.providerID)?.provider,
+                             maxSize: items.first?.size ?? 1, diskUsed: diskUsed)
+                    .frame(minWidth: minWidth, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .buttonStyle(.plain)
+            .help("\(item.title)\n\(item.detail)\nClick to open \(model.state(for: item.providerID)?.provider.title ?? "its source")")
+        }
+    }
+
+    func columns(_ count: Int) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: count), spacing: 12) {
+            cards(minWidth: 0)
+        }
+    }
+}
+
+struct TopPlaceCard: View {
+    let rank: Int
+    let item: CleanupItem
+    let source: (any CleanupProvider)?
+    let maxSize: Int64
+    let diskUsed: Int64
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("\(rank)")
+                    .font(.caption.bold())
+                    .frame(width: 18, height: 18)
+                    .background(Circle().fill(Color.accentColor.opacity(0.15)))
+                Image(systemName: source?.icon ?? "folder").foregroundStyle(.secondary)
+                Text(source?.title ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Text(item.title)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(ByteFormat.string(item.size))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            SizeBar(value: item.size, maxValue: maxSize)
+            if diskUsed > 0 {
+                Text("\(String(format: "%.1f", Double(item.size) / Double(diskUsed) * 100))% of used space")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+        .contentShape(Rectangle())
     }
 }

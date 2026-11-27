@@ -10,6 +10,7 @@ You need macOS 14 or later and Xcode (the project builds with Xcode 27 / Swift 6
 git clone https://github.com/gustavopaixao/diskward.git
 cd diskward
 swift test                  # unit tests
+scripts/coverage.sh         # tests + line coverage (writes coverage.lcov)
 scripts/build-app.sh        # builds build/Diskward.app
 open build/Diskward.app
 ```

@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/gustavopaixao/diskward/actions/workflows/ci.yml"><img src="https://github.com/gustavopaixao/diskward/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/gustavopaixao/diskward"><img src="https://codecov.io/gh/gustavopaixao/diskward/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://github.com/gustavopaixao/diskward/releases/latest"><img src="https://img.shields.io/github/v/release/gustavopaixao/diskward?include_prereleases&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-0F2D4A" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-6-0B6E7A" alt="Swift 6">

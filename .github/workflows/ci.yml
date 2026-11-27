@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # Codecov upload via OIDC (no token secret needed)
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -32,8 +33,17 @@ jobs:
       - name: Build
         run: swift build
 
-      - name: Test
-        run: swift test
+      - name: Test with coverage
+        run: |
+          scripts/coverage.sh | tee coverage-summary.txt
+          echo "### $(tail -1 coverage-summary.txt)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage.lcov
+          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
+          fail_ci_if_error: false # a Codecov outage shouldn't fail CI
 
       - name: Build app bundle
         run: scripts/build-app.sh

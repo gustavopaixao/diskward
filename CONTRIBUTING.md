@@ -1,6 +1,6 @@
 # Contributing to Diskward
 
-Thanks for helping! Bug reports, ideas for new cleanup sources and pull requests are all welcome.
+Thanks for helping! Bug reports, ideas for new cleanup sources and pull requests are all welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Setup
 
@@ -39,6 +39,8 @@ Diskward deletes files, so these rules apply to every change:
 - **Manual items:** if deleting something directly would break another app (Mail, Messages), make it a `.manual` item with instructions.
 
 ## Pull requests
+
+`main` is protected: every change goes through a pull request, CI ("Build & test") must pass, and the branch is squash-merged. For a first-time contributor, a maintainer approves the CI run before it starts.
 
 - Keep each pull request focused on one change.
 - Run `swift test` before pushing. CI runs it too.

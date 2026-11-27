@@ -1,0 +1,6 @@
+# Every change needs review by the maintainer.
+* @gustavopaixao
+
+# Code that decides what gets deleted: changes here need extra care.
+/Sources/StorageCore/Cleaning/   @gustavopaixao
+/Sources/StorageCore/Rules/      @gustavopaixao

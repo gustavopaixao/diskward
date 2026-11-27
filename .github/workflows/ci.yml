@@ -42,6 +42,7 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           files: coverage.lcov
+          disable_search: true # only upload coverage.lcov, not other files Codecov might guess at
           use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
           fail_ci_if_error: false # a Codecov outage shouldn't fail CI
 

@@ -18,7 +18,8 @@ struct OverviewView: View {
                                      : "of \(ByteFormat.string(disk.total))"
                              } ?? "")
                     StatCard(title: "Reclaimable found", value: ByteFormat.string(model.totalReclaimable),
-                             caption: model.isScanning ? "Scanning…" : model.lastScan.map { "Scanned \($0.relative)" } ?? "")
+                             caption: model.isScanning ? "Scanning…" : model.lastScan.map { "Scanned \($0.relative)" } ?? "",
+                             valueColor: DS.reclaimable)
                     StatCard(title: "Selected", value: ByteFormat.string(model.selectedSize),
                              caption: "\(model.selection.count) items · safe items are pre-selected")
                 }
@@ -70,11 +71,13 @@ struct StatCard: View {
     let title: String
     let value: String
     let caption: String
+    var valueColor: Color = .primary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.system(size: 26, weight: .semibold, design: .rounded)).monospacedDigit()
+                .foregroundStyle(valueColor)
             Text(caption).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
         .padding()
@@ -125,7 +128,7 @@ struct OverviewRow: View {
                     .foregroundStyle(state.total > 0 ? .primary : .secondary)
             }
         case .unavailable(let reason), .failed(let reason):
-            Text(reason).font(.caption).foregroundStyle(.orange).lineLimit(1)
+            Text(reason).font(.caption).foregroundStyle(DS.review).lineLimit(1)
         case .hidden:
             EmptyView()
         }
@@ -145,17 +148,17 @@ struct UsageBreakdown: View {
             GeometryReader { geo in
                 let total = max(Double(disk.total), 1)
                 HStack(spacing: 2) {
-                    segment(.orange, width: geo.size.width * Double(min(reclaimable, disk.used)) / total)
-                    segment(.gray, width: geo.size.width * Double(other) / total)
-                    segment(.green.opacity(0.5), width: geo.size.width * Double(disk.available) / total)
+                    segment(DS.reclaimable, width: geo.size.width * Double(min(reclaimable, disk.used)) / total)
+                    segment(DS.otherUsed, width: geo.size.width * Double(other) / total)
+                    segment(Color.secondary.opacity(0.2), width: geo.size.width * Double(disk.available) / total)
                 }
             }
             .frame(height: 14)
 
             HStack(spacing: 18) {
-                legend(.orange, "Reclaimable", reclaimable)
-                legend(.gray, "Other used space", other)
-                legend(.green.opacity(0.5), "Free", disk.available)
+                legend(DS.reclaimable, "Reclaimable", reclaimable)
+                legend(DS.otherUsed, "Other used space", other)
+                legend(Color.secondary.opacity(0.2), "Free", disk.available)
                 Spacer()
                 Button("Find it in Disk Explorer", action: explore)
             }
@@ -243,7 +246,7 @@ struct TopPlaceCard: View {
                 Text("\(rank)")
                     .font(.caption.bold())
                     .frame(width: 18, height: 18)
-                    .background(Circle().fill(Color.accentColor.opacity(0.15)))
+                    .background(Circle().fill(DS.tint.opacity(0.15)))
                 Image(systemName: source?.icon ?? "folder").foregroundStyle(.secondary)
                 Text(source?.title ?? "")
                     .font(.caption)

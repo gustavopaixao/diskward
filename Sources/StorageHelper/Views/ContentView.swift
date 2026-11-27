@@ -231,7 +231,7 @@ struct SidebarRow: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             case .failed, .unavailable:
-                Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(DS.review)
             case .hidden:
                 EmptyView()
             }

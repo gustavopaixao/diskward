@@ -1,4 +1,6 @@
-# Storage Developer Helper
+# Diskward
+
+*Your disk, under control.*
 
 A native macOS app that scans your Mac for space you can safely reclaim and cleans it up.
 
@@ -26,9 +28,9 @@ Sections for tools you don't have (for example Jenkins) are hidden automatically
 You need Xcode (or its command-line tools) on macOS 14 or later.
 
 ```bash
-scripts/build-app.sh                       # builds "build/Storage Developer Helper.app"
-open "build/Storage Developer Helper.app"
-cp -R "build/Storage Developer Helper.app" /Applications/   # optional
+scripts/build-app.sh                       # builds "build/Diskward.app"
+open "build/Diskward.app"
+cp -R "build/Diskward.app" /Applications/   # optional
 ```
 
 Other ways to run it:
@@ -38,7 +40,7 @@ Other ways to run it:
 
 ### Full Disk Access
 
-macOS hides the Trash and some caches from apps unless you grant Full Disk Access. Without it, the numbers will be too low. Grant it in **System Settings → Privacy & Security → Full Disk Access**: turn on Storage Developer Helper, then click **Scan**. The app shows a banner with a button to open that settings pane.
+macOS hides the Trash and some caches from apps unless you grant Full Disk Access. Without it, the numbers will be too low. Grant it in **System Settings → Privacy & Security → Full Disk Access**: turn on Diskward, then click **Scan**. The app shows a banner with a button to open that settings pane.
 
 Full Disk Access is tied to the app's code signature. The build script signs ad-hoc by default, and macOS may then forget the permission after each rebuild. To avoid that, sign with your own certificate:
 
@@ -90,6 +92,25 @@ scripts/build-app.sh    builds and signs the .app bundle
 ```bash
 swift test
 ```
+
+## Branding
+
+- **Source assets:** the approved originals are in `materials/` and are never edited. `Resources/Assets.xcassets` holds byte-identical copies of `AppIcon.appiconset` and `DiskwardMenuBar.imageset`, plus an `AccentColor` set.
+- **How they get into the app:** `scripts/build-app.sh` compiles the catalog with `actool` into `Assets.car` and `AppIcon.icns`. Info.plist points to them through `CFBundleIconName`, `CFBundleIconFile` and `NSAccentColorName`.
+- **Menu bar glyph:** loaded with `Brand.menuBarImage` as a template image, so macOS handles light mode, dark mode and the highlighted state.
+- **Colors:** tokens live in `Sources/StorageHelper/Design/Brand.swift`. Views use the semantic names, not raw hex values:
+
+| Token | Use | Light | Dark |
+|---|---|---|---|
+| `DS.tint` | Buttons, toggles, progress (matches AccentColor) | `#0B6E7A` | `#0D7F8C` |
+| `DS.reclaimable` | Reclaimable bars and large numbers | `#059669` | `#34D399` |
+| `DS.reclaimableText` | Reclaimable small text | `#047857` | `#34D399` |
+| `DS.review` | Caution, Review, warnings, growth | `#B45309` | `#FBBF24` |
+| `DS.critical` | Failures, irreversible deletes, disk almost full | system red | system red |
+| `DS.otherUsed` | Used space that isn't reclaimable | `#0F2D4A` | `#8FA3B8` |
+
+  The dark-mode variants were chosen to meet contrast targets against standard macOS backgrounds: at least 4.5:1 for text and at least 3:1 for shapes. Everything else uses native macOS colors.
+- **Typography:** SF Pro (system font), SF Mono (`Font.technical`) for paths and commands, and monospaced digits for sizes.
 
 ## Notes
 

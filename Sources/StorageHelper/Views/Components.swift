@@ -13,10 +13,10 @@ struct DiskGauge: View {
                     Spacer()
                     Text("\(ByteFormat.string(disk.available)) free")
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(disk.available < 20_000_000_000 ? .red : .secondary)
+                        .foregroundStyle(disk.available < 20_000_000_000 ? DS.critical : .secondary)
                 }
                 ProgressView(value: disk.usedFraction)
-                    .tint(disk.usedFraction > 0.9 ? .red : disk.usedFraction > 0.8 ? .orange : .accentColor)
+                    .tint(disk.usedFraction > 0.9 ? DS.critical : disk.usedFraction > 0.8 ? DS.review : DS.tint)
                 Text("\(ByteFormat.string(disk.used)) of \(ByteFormat.string(disk.total)) used")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -31,7 +31,7 @@ struct DiskGauge: View {
 struct SizeBar: View {
     let value: Int64
     let maxValue: Int64
-    var color: Color = .accentColor
+    var color: Color = DS.reclaimable
 
     var body: some View {
         GeometryReader { geo in
@@ -56,14 +56,14 @@ struct SafetyBadge: View {
             Text("Caution")
                 .font(.caption2.bold())
                 .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Capsule().fill(Color.orange.opacity(0.2)))
-                .foregroundStyle(.orange)
+                .background(Capsule().fill(DS.review.opacity(0.15)))
+                .foregroundStyle(DS.review)
         case .review:
             Text("Review")
                 .font(.caption2.bold())
                 .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Capsule().fill(Color.purple.opacity(0.2)))
-                .foregroundStyle(.purple)
+                .overlay(Capsule().strokeBorder(DS.review, lineWidth: 1))
+                .foregroundStyle(DS.review)
         }
     }
 }
@@ -73,10 +73,10 @@ struct FullDiskAccessBanner: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lock.shield").font(.title2).foregroundStyle(.orange)
+            Image(systemName: "lock.shield").font(.title2).foregroundStyle(DS.review)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Full Disk Access is off").font(.headline)
-                Text("Without it, Storage Developer Helper can't see the Trash and some caches, so the numbers will be too low. Turn on Storage Developer Helper in System Settings › Privacy & Security › Full Disk Access, then scan again.")
+                Text("Without it, Diskward can't see the Trash and some caches, so the numbers will be too low. Turn on Diskward in System Settings › Privacy & Security › Full Disk Access, then scan again.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -92,8 +92,8 @@ struct FullDiskAccessBanner: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.3)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(DS.review.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DS.review.opacity(0.35)))
     }
 }
 

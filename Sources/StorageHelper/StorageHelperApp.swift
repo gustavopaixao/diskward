@@ -10,14 +10,18 @@ struct StorageHelperApp: App {
     @AppStorage(AppSettings.showMenuBarKey) private var showMenuBar = true
 
     var body: some Scene {
-        WindowGroup("Storage Developer Helper", id: "main") {
+        WindowGroup(Brand.name, id: "main") {
             ContentView()
                 .environment(model)
                 .environment(explorer)
                 .frame(minWidth: 900, minHeight: 560)
+                .tint(DS.tint)
                 .task { model.scanIfNeeded() }
         }
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About \(Brand.name)") { AboutPanel.show() }
+            }
             CommandGroup(after: .newItem) {
                 Button("Scan Again") { model.scanAll() }
                     .keyboardShortcut("r", modifiers: .command)
@@ -25,14 +29,14 @@ struct StorageHelperApp: App {
         }
 
         MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarView().environment(model)
+            MenuBarView().environment(model).tint(DS.tint)
         } label: {
             MenuBarLabel().environment(model)
         }
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView()
+            SettingsView().tint(DS.tint)
         }
     }
 }

@@ -26,12 +26,12 @@ struct GeneralSettingsView: View {
         Form {
             Section("Menu bar") {
                 Toggle("Show free space in the menu bar", isOn: $showMenuBar)
-                Text("When it's on, closing the window keeps Storage Developer Helper running in the menu bar.")
+                Text("When it's on, closing the window keeps Diskward running in the menu bar.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let loginError {
-                    Text(loginError).font(.caption).foregroundStyle(.red)
+                    Text(loginError).font(.caption).foregroundStyle(DS.critical)
                 }
             }
             Section("Alerts") {
@@ -73,7 +73,7 @@ struct ProjectFoldersSettingsView: View {
         Form {
             Section {
                 List(roots, id: \.self, selection: $selected) { url in
-                    Text(Paths.display(url))
+                    Text(Paths.display(url)).font(.system(.body, design: .monospaced))
                 }
                 .frame(minHeight: 160)
                 HStack {

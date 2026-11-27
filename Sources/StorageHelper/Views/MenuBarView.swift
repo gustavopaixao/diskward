@@ -10,10 +10,12 @@ struct MenuBarLabel: View {
     var body: some View {
         let free = model.disk?.available ?? 0
         let low = free < Int64(thresholdGB) * 1_000_000_000
+        // Template glyph + text: macOS tints both for light/dark menu bars and the highlight state.
         HStack(spacing: 4) {
-            Image(systemName: low ? "externaldrive.badge.exclamationmark" : "internaldrive")
-            Text(model.disk.map { ByteFormat.string($0.available) } ?? "")
+            Brand.menuBarImage
+            Text((low ? "⚠︎ " : "") + (model.disk.map { ByteFormat.string($0.available) } ?? ""))
         }
+        .accessibilityLabel(low ? "\(Brand.name): low disk space" : Brand.name)
         .onAppear { MainWindow.open = { openWindow(id: "main") } }
     }
 }
@@ -24,6 +26,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            BrandHeader(iconSize: 28, showTagline: false)
             DiskGauge(disk: model.disk)
 
             if let growth = model.growth() {
@@ -33,7 +36,7 @@ struct MenuBarView: View {
                     Text("Free space \(SignedBytes.string(growth.freeDelta))").font(.callout)
                     ForEach(growth.grown.prefix(3)) { entry in
                         HStack {
-                            Image(systemName: "arrow.up.right").foregroundStyle(.orange).font(.caption)
+                            Image(systemName: "arrow.up.right").foregroundStyle(DS.review).font(.caption)
                             Text(entry.title).lineLimit(1)
                             Spacer()
                             Text(SignedBytes.string(entry.delta)).monospacedDigit()
@@ -56,7 +59,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button { open(route: .overview) } label: { Label("Open Storage Developer Helper", systemImage: "macwindow") }
+            Button { open(route: .overview) } label: { Label("Open Diskward", systemImage: "macwindow") }
             Button { open(route: .changes) } label: { Label("What Changed", systemImage: "chart.line.uptrend.xyaxis") }
             let matches = model.ruleMatches
             Button { open(route: .rules) } label: {

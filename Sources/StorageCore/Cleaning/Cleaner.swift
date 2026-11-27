@@ -115,7 +115,7 @@ public struct Cleaner: Sendable {
                 return (nil, nil)
 
             case .manual(let instructions):
-                return ("Storage Developer Helper doesn't clean this automatically. \(instructions)", nil)
+                return ("Diskward doesn't clean this automatically. \(instructions)", nil)
             }
         } catch {
             return (error.localizedDescription, nil)

@@ -18,13 +18,15 @@ struct FullDiskAccessSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            BrandHeader()
+            Divider()
             HStack(spacing: 14) {
                 Image(systemName: "lock.shield.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DS.review)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Allow Full Disk Access").font(.title2.bold())
-                    Text("Storage Developer Helper needs it to measure the Trash, app caches and other protected folders. Without it, the numbers will be too low.")
+                    Text("Diskward needs it to measure the Trash, app caches and other protected folders. Without it, the numbers will be too low.")
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 }
@@ -38,7 +40,7 @@ struct FullDiskAccessSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                step(2, "Turn on Storage Developer Helper. If it isn't listed, click + and choose the app, or drag it into the list.") {
+                step(2, "Turn on Diskward. If it isn't listed, click + and choose the app, or drag it into the list.") {
                     Button("Show App in Finder") {
                         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                     }
@@ -84,7 +86,7 @@ struct FullDiskAccessSheet: View {
             Text("\(number)")
                 .font(.headline)
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.accentColor.opacity(0.15)))
+                .background(Circle().fill(DS.tint.opacity(0.15)))
             Text(text).lineLimit(3)
             Spacer(minLength: 8)
             accessory()

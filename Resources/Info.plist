@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Storage Developer Helper</string>
-    <key>CFBundleDisplayName</key><string>Storage Developer Helper</string>
+    <key>CFBundleName</key><string>Diskward</string>
+    <key>CFBundleDisplayName</key><string>Diskward</string>
     <key>CFBundleIdentifier</key><string>dev.local.StorageHelper</string>
     <key>CFBundleExecutable</key><string>StorageHelper</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -13,8 +13,13 @@
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
-    <key>NSDownloadsFolderUsageDescription</key><string>Storage Developer Helper lists large and old files in Downloads so you can decide what to remove.</string>
-    <key>NSDesktopFolderUsageDescription</key><string>Storage Developer Helper measures folder sizes in the Disk Explorer.</string>
-    <key>NSDocumentsFolderUsageDescription</key><string>Storage Developer Helper measures folder sizes and looks for node_modules in your projects.</string>
+    <!-- Compiled from Resources/Assets.xcassets by actool in scripts/build-app.sh -->
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundleIconName</key><string>AppIcon</string>
+    <key>NSAccentColorName</key><string>AccentColor</string>
+    <key>NSHumanReadableCopyright</key><string>Diskward — Your disk, under control.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Diskward lists large and old files in Downloads so you can decide what to remove.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Diskward measures folder sizes in the Disk Explorer.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Diskward measures folder sizes and looks for node_modules in your projects.</string>
 </dict>
 </plist>

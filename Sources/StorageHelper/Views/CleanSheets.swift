@@ -20,15 +20,15 @@ struct CleanConfirmSheet: View {
             let running = model.runningRelatedApps(for: items)
             if !running.isEmpty {
                 Label("Quit \(running.joined(separator: ", ")) first for best results.", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DS.review)
             }
             if riskyCount > 0 {
                 Label("\(riskyCount) selected item\(riskyCount == 1 ? " is" : "s are") marked Caution or Review.", systemImage: "hand.raised.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DS.review)
             }
             if permanentCount > 0 {
                 Label("\(permanentCount) item\(permanentCount == 1 ? "" : "s") will be removed permanently (Docker, simulators, Homebrew, emptying the Trash).", systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DS.critical)
             }
 
             List {
@@ -41,7 +41,7 @@ struct CleanConfirmSheet: View {
                             }
                             Text(actionDetail(item))
                                 .font(.caption.monospaced())
-                                .foregroundStyle(item.action.isPermanent ? .red : .secondary)
+                                .foregroundStyle(item.action.isPermanent ? DS.critical : .secondary)
                                 .lineLimit(2)
                                 .truncationMode(.middle)
                         }
@@ -75,7 +75,7 @@ struct CleanConfirmSheet: View {
                     Text("Clean \(ByteFormat.string(total))")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.red)
+                .tint(DS.critical)
             }
         }
         .padding(20)
@@ -106,7 +106,7 @@ struct CleanReportSheet: View {
             Label(report.failed.isEmpty ? "Cleanup finished" : "Cleanup finished with problems",
                   systemImage: report.failed.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.title2.bold())
-                .foregroundStyle(report.failed.isEmpty ? .green : .orange)
+                .foregroundStyle(report.failed.isEmpty ? DS.reclaimableText : DS.review)
 
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 GridRow {
@@ -131,7 +131,7 @@ struct CleanReportSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let trashError = report.trashEmptyError {
-                Text(trashError).font(.callout).foregroundStyle(.red)
+                Text(trashError).font(.callout).foregroundStyle(DS.critical)
             }
 
             if !report.failed.isEmpty {
@@ -139,7 +139,7 @@ struct CleanReportSheet: View {
                 List(report.failed) { outcome in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(outcome.item.title)
-                        Text(outcome.error ?? "").font(.caption).foregroundStyle(.red).lineLimit(3)
+                        Text(outcome.error ?? "").font(.caption).foregroundStyle(DS.critical).lineLimit(3)
                     }
                 }
                 .frame(minHeight: 140)
@@ -151,7 +151,7 @@ struct CleanReportSheet: View {
                     ScrollView {
                         Text(logs.joined(separator: "\n\n"))
                             .font(.caption.monospaced())
-                            .foregroundStyle(.green)
+                            .foregroundStyle(DS.terminalText)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)

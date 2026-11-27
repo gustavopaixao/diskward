@@ -183,8 +183,8 @@ struct ProviderDetailView: View {
                         SafetyBadge(safety: item.safety)
                     }
                     Text(item.note ?? item.detail)
-                        .font(.caption)
-                        .foregroundStyle(item.note == nil ? Color.secondary : Color.orange)
+                        .font(item.note == nil && (item.detail.hasPrefix("~") || item.detail.hasPrefix("/")) ? .technical : .caption)
+                        .foregroundStyle(item.note == nil ? Color.secondary : DS.review)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -244,7 +244,7 @@ struct ActionCell: View {
             if let command = item.command {
                 Text("$ \(command.display)")
                     .font(.caption.monospaced())
-                    .foregroundStyle(.red.opacity(0.85))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help("Runs when you clean this item: \(command.shellLine)")
@@ -270,7 +270,7 @@ struct ActionCell: View {
             } else {
                 Text(item.action.summary)
                     .font(.caption)
-                    .foregroundStyle(item.action.isPermanent ? .red : .secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }

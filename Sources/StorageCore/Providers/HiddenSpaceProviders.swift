@@ -109,7 +109,7 @@ public struct MailMessagesProvider: CleanupProvider {
     public let title = "Mail & Messages"
     public let icon = "envelope"
     public let category = CleanupCategory.system
-    public let note: String? = "Shown for information. Storage Developer Helper won't delete these files directly, because that would break Mail and Messages. Follow the steps in the Action column instead."
+    public let note: String? = "Shown for information. Diskward won't delete these files directly, because that would break Mail and Messages. Follow the steps in the Action column instead."
     let home: URL
 
     public init(home: URL = Paths.home) { self.home = home }

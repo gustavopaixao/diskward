@@ -31,7 +31,7 @@ struct DiskExplorerView: View {
         ) { child in
             Button("Move to Trash (\(ByteFormat.string(child.size)))", role: .destructive) { trash(child) }
         } message: { child in
-            Text(Paths.display(child.url))
+            Text(Paths.display(child.url)).font(.technical)
         }
         .alert("Couldn't move to Trash", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") {}
@@ -84,7 +84,7 @@ struct DiskExplorerView: View {
                     HStack {
                         Text(child.name).lineLimit(1)
                         if child.unreadable > 0 {
-                            Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.orange)
+                            Image(systemName: "lock.fill").font(.caption2).foregroundStyle(DS.review)
                                 .help("\(child.unreadable) items couldn't be read. The real size may be larger.")
                         }
                         Spacer()
@@ -92,7 +92,7 @@ struct DiskExplorerView: View {
                             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         Text(ByteFormat.string(child.size)).monospacedDigit().frame(width: 80, alignment: .trailing)
                     }
-                    SizeBar(value: child.size, maxValue: maxSize, color: child.isDirectory ? .accentColor : .teal)
+                    SizeBar(value: child.size, maxValue: maxSize, color: child.isDirectory ? DS.tint : DS.otherUsed)
                 }
                 if child.isDirectory {
                     Button { explorer.open(child.url) } label: { Image(systemName: "chevron.right") }

@@ -134,7 +134,7 @@ struct DeltaRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: delta > 0 ? "arrow.up.right" : "arrow.down.right")
-                .foregroundStyle(delta > 0 ? Color.orange : Color.green)
+                .foregroundStyle(delta > 0 ? DS.review : DS.reclaimable)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
@@ -145,7 +145,7 @@ struct DeltaRow: View {
                 HStack {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
-                    SizeBar(value: abs(delta), maxValue: maxDelta, color: delta > 0 ? .orange : .green)
+                    SizeBar(value: abs(delta), maxValue: maxDelta, color: delta > 0 ? DS.review : DS.reclaimable)
                         .frame(width: 120)
                 }
             }
@@ -177,8 +177,10 @@ struct FreeSpaceChart: View {
                     LineMark(x: .value("Date", snapshot.date), y: .value("Free", Double(snapshot.free) / 1e9))
                         .lineStyle(StrokeStyle(lineWidth: 2))
                         .interpolationMethod(.monotone)
+                        .foregroundStyle(DS.tint)
                     PointMark(x: .value("Date", snapshot.date), y: .value("Free", Double(snapshot.free) / 1e9))
                         .symbolSize(30)
+                        .foregroundStyle(DS.tint)
                 }
                 if let from {
                     RuleMark(x: .value("Compared from", from))

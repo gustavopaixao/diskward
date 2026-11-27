@@ -101,12 +101,13 @@ public struct DockerProvider: CleanupProvider {
         let containers = DockerProvider.decodeLines(DockerContainerRow.self, from: containersResult.stdout)
 
         var items = DockerProvider.containerItems(containers, providerID: id)
+        let verbose = (try? await verboseDFOut).flatMap { $0.succeeded ? $0.stdoutString : nil } ?? ""
         if let images = try? await imagesOut, images.succeeded {
-            items += DockerProvider.imageItems(from: images.stdout, containers: containers, providerID: id)
+            items += DockerProvider.imageItems(
+                from: images.stdout, containers: containers,
+                uniqueSizes: DockerProvider.parseImageUniqueSizes(verboseDF: verbose), providerID: id)
         }
-        if let verbose = try? await verboseDFOut, verbose.succeeded {
-            items += DockerProvider.volumeItems(DockerProvider.parseVolumes(verboseDF: verbose.stdoutString), providerID: id)
-        }
+        items += DockerProvider.volumeItems(DockerProvider.parseVolumes(verboseDF: verbose), providerID: id)
         if let df = try? await dfOut, df.succeeded {
             items += DockerProvider.buildCacheItems(fromDF: df.stdout, providerID: id)
         }
@@ -143,7 +144,12 @@ public struct DockerProvider: CleanupProvider {
 
     /// `docker image ls` prints one line per *tag*, so an image tagged twice appears twice.
     /// Lines are merged by image ID: one row per image, listing all of its tags.
-    static func imageItems(from data: Data, containers: [DockerContainerRow], providerID: String) -> [CleanupItem] {
+    /// - Parameter uniqueSizes: image ID → bytes only this image uses (what removing it frees).
+    ///   Without it, the full image size is used, which counts shared layers more than once.
+    static func imageItems(
+        from data: Data, containers: [DockerContainerRow],
+        uniqueSizes: [String: Int64] = [:], providerID: String
+    ) -> [CleanupItem] {
         var order: [String] = []
         var byID: [String: [DockerImageRow]] = [:]
         for row in decodeLines(DockerImageRow.self, from: data) {
@@ -176,8 +182,8 @@ public struct DockerProvider: CleanupProvider {
                 id: "\(providerID):image:\(imageID)",
                 providerID: providerID,
                 title: dangling ? "<untagged> \(imageID)" : tags.joined(separator: ", "),
-                detail: "Image \(imageID)" + (first.createdSince.map { " · created \($0)" } ?? ""),
-                size: parseSize(first.size),
+                detail: "Image \(imageID) · \(first.size) total" + (first.createdSince.map { " · created \($0)" } ?? ""),
+                size: uniqueSizes[imageID] ?? parseSize(first.size),
                 safety: dangling && !inUse ? .safe : .caution,
                 action: .command(ShellCommand("docker", arguments)),
                 note: note,
@@ -216,6 +222,25 @@ public struct DockerProvider: CleanupProvider {
                 groupOrder: Tab.volumes.rawValue
             )
         }
+    }
+
+    /// Reads UNIQUE SIZE per image ID from the "Images space usage" table of `docker system df -v`.
+    /// Columns: REPOSITORY TAG IMAGE ID CREATED(several words) SIZE SHARED UNIQUE CONTAINERS,
+    /// so the ID is the 3rd token and sizes are counted from the end.
+    static func parseImageUniqueSizes(verboseDF text: String) -> [String: Int64] {
+        var sizes: [String: Int64] = [:]
+        var inSection = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("Images space usage") { inSection = true; continue }
+            guard inSection else { continue }
+            if trimmed.hasPrefix("REPOSITORY") || (trimmed.isEmpty && sizes.isEmpty) { continue }
+            if trimmed.isEmpty || trimmed.hasSuffix("space usage:") { break }
+            let parts = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+            guard parts.count >= 8 else { continue }
+            sizes[parts[2]] = parseSize(parts[parts.count - 2])
+        }
+        return sizes
     }
 
     /// Reads the "Local Volumes space usage" table from `docker system df -v`.

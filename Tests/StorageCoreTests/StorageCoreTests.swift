@@ -221,6 +221,16 @@ func fixture(_ name: String) throws -> Data {
         #expect(dangling.command == ShellCommand("docker", ["image", "rm", "bbb222"]))
     }
 
+    @Test func dockerImagesUseUniqueSize() throws {
+        let text = String(decoding: try fixture("docker-df-verbose.txt"), as: UTF8.self)
+        let unique = DockerProvider.parseImageUniqueSizes(verboseDF: text)
+        #expect(unique == ["aaa111": 438_000_000, "ccc333": 700_000_000])
+        let images = DockerProvider.imageItems(from: try fixture("docker-images.jsonl"), containers: [],
+                                               uniqueSizes: unique, providerID: "docker")
+        #expect(images.first { $0.title == "node:20" }?.size == 700_000_000)      // shared layers excluded
+        #expect(images.first { $0.title.hasPrefix("<untagged>") }?.size == 1_210_000_000) // fallback
+    }
+
     @Test func dockerVolumesFromVerboseDF() throws {
         let text = String(decoding: try fixture("docker-df-verbose.txt"), as: UTF8.self)
         let volumes = DockerProvider.parseVolumes(verboseDF: text)

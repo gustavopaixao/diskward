@@ -2,6 +2,7 @@ Images space usage:
 
 REPOSITORY   TAG       IMAGE ID       CREATED        SIZE      SHARED SIZE   UNIQUE SIZE   CONTAINERS
 postgres     16        aaa111         2 months ago   438MB     0B            438MB         1
+node         20        ccc333         3 weeks ago    1.1GB     400MB         700MB         1
 
 Containers space usage:
 

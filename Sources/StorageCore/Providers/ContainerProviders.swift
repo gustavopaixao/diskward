@@ -22,12 +22,37 @@ struct DockerImageRow: Decodable {
     let tag: String
     let size: String
     let createdSince: String?
-    let createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id = "ID", repository = "Repository", tag = "Tag", size = "Size",
-             createdSince = "CreatedSince", createdAt = "CreatedAt"
+        case id = "ID", repository = "Repository", tag = "Tag", size = "Size", createdSince = "CreatedSince"
     }
+}
+
+/// One line of `docker ps -a --size --format json`.
+struct DockerContainerRow: Decodable {
+    let id: String
+    let image: String
+    let names: String
+    let state: String?
+    let status: String?
+    let size: String?
+    let runningFor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "ID", image = "Image", names = "Names", state = "State", status = "Status",
+             size = "Size", runningFor = "RunningFor"
+    }
+
+    var isRunning: Bool {
+        if let state { return state == "running" || state == "restarting" || state == "paused" }
+        return status?.hasPrefix("Up") ?? false
+    }
+}
+
+struct DockerVolumeRow: Equatable {
+    let name: String
+    let links: Int
+    let size: Int64
 }
 
 public struct DockerProvider: CleanupProvider {
@@ -35,8 +60,23 @@ public struct DockerProvider: CleanupProvider {
     public let title = "Docker"
     public let icon = "shippingbox.fill"
     public let category = CleanupCategory.containers
-    public let note: String? = "Docker Desktop keeps everything in one disk image (Docker.raw). After pruning, that file may take a while to shrink, so the change in free space can lag."
+    public let note: String? = "Docker Desktop keeps everything in one disk image (Docker.raw). After cleaning, that file may take a while to shrink, so the change in free space can lag. Image sizes include layers shared with other images."
     public let relatedApps: [String] = []
+
+    /// Tabs in display order. The same order is used when running commands,
+    /// so containers are removed before the images and volumes they use.
+    enum Tab: Int {
+        case containers, images, volumes, buildCache
+
+        var title: String {
+            switch self {
+            case .containers: "Containers"
+            case .images: "Images"
+            case .volumes: "Volumes"
+            case .buildCache: "Build Cache"
+            }
+        }
+    }
 
     public init() {}
 
@@ -49,22 +89,31 @@ public struct DockerProvider: CleanupProvider {
     }
 
     public func scan() async throws -> [CleanupItem] {
-        async let dfOutput = ShellRunner.run("docker", ["system", "df", "--format", "json"], timeout: 60)
-        async let imagesOutput = ShellRunner.run("docker", ["image", "ls", "--format", "json"], timeout: 60)
-        async let usedOutput = ShellRunner.run("docker", ["ps", "-a", "--format", "{{.Image}}"], timeout: 60)
+        async let containersOut = ShellRunner.run("docker", ["ps", "-a", "--size", "--format", "json"], timeout: 120)
+        async let imagesOut = ShellRunner.run("docker", ["image", "ls", "--format", "json"], timeout: 60)
+        async let verboseDFOut = ShellRunner.run("docker", ["system", "df", "-v"], timeout: 180)
+        async let dfOut = ShellRunner.run("docker", ["system", "df", "--format", "json"], timeout: 60)
 
-        let df = try await dfOutput
-        guard df.succeeded else { throw ProviderError("docker system df failed: \(df.stderr.prefix(300))") }
-        var items = DockerProvider.summaryItems(fromDF: df.stdout, providerID: id)
-
-        let images = try await imagesOutput
-        let used = (try? await usedOutput)?.stdoutString ?? ""
-        let usedImages = Set(used.split(separator: "\n").map(String.init))
-        if images.succeeded {
-            items += DockerProvider.imageItems(from: images.stdout, usedBy: usedImages, providerID: id)
+        let containersResult = try await containersOut
+        guard containersResult.succeeded else {
+            throw ProviderError("docker ps failed: \(containersResult.stderr.prefix(300))")
         }
-        return items.sorted { $0.size > $1.size }
+        let containers = DockerProvider.decodeLines(DockerContainerRow.self, from: containersResult.stdout)
+
+        var items = DockerProvider.containerItems(containers, providerID: id)
+        if let images = try? await imagesOut, images.succeeded {
+            items += DockerProvider.imageItems(from: images.stdout, containers: containers, providerID: id)
+        }
+        if let verbose = try? await verboseDFOut, verbose.succeeded {
+            items += DockerProvider.volumeItems(DockerProvider.parseVolumes(verboseDF: verbose.stdoutString), providerID: id)
+        }
+        if let df = try? await dfOut, df.succeeded {
+            items += DockerProvider.buildCacheItems(fromDF: df.stdout, providerID: id)
+        }
+        return items.sorted { ($0.groupOrder, -$0.size) < ($1.groupOrder, -$1.size) }
     }
+
+    // MARK: Parsing (static so they can be tested with fixtures)
 
     static func decodeLines<T: Decodable>(_ type: T.Type, from data: Data) -> [T] {
         let decoder = JSONDecoder()
@@ -73,56 +122,136 @@ public struct DockerProvider: CleanupProvider {
             .compactMap { try? decoder.decode(T.self, from: Data($0.utf8)) }
     }
 
-    /// Aggregate items: stopped containers, unused volumes, build cache.
-    static func summaryItems(fromDF data: Data, providerID: String) -> [CleanupItem] {
-        let docker = "docker"
-        return decodeLines(DockerDFRow.self, from: data).compactMap { row in
-            let reclaimable = parseSize(row.reclaimable ?? "0B")
-            guard reclaimable > 0 else { return nil }
-            let counts = "\(row.totalCount ?? "?") total, \(row.active ?? "?") in use"
-            switch row.type {
-            case "Containers":
-                return CleanupItem(
-                    id: "\(providerID):containers", providerID: providerID,
-                    title: "Stopped containers", detail: counts, size: reclaimable,
-                    safety: .safe, action: .command(ShellCommand(docker, ["container", "prune", "-f"])))
-            case "Local Volumes":
-                return CleanupItem(
-                    id: "\(providerID):volumes", providerID: providerID,
-                    title: "Unused volumes", detail: counts, size: reclaimable,
-                    safety: .caution, action: .command(ShellCommand(docker, ["volume", "prune", "-a", "-f"])),
-                    note: "Volumes can hold databases and other data. Only unused volumes are removed.")
-            case "Build Cache":
-                return CleanupItem(
-                    id: "\(providerID):build-cache", providerID: providerID,
-                    title: "Build cache", detail: counts, size: reclaimable,
-                    safety: .safe, action: .command(ShellCommand(docker, ["builder", "prune", "-a", "-f"])))
-            default:
-                return nil // images are listed one by one
-            }
-        }
-    }
-
-    static func imageItems(from data: Data, usedBy usedImages: Set<String>, providerID: String) -> [CleanupItem] {
-        decodeLines(DockerImageRow.self, from: data).map { image in
-            let name = image.repository == "<none>" ? "<untagged>" : "\(image.repository):\(image.tag)"
-            let dangling = image.repository == "<none>"
-            let inUse = usedImages.contains(name) || usedImages.contains(image.repository)
-                || usedImages.contains { $0.hasPrefix(image.id) }
+    static func containerItems(_ containers: [DockerContainerRow], providerID: String) -> [CleanupItem] {
+        containers.map { container in
+            let running = container.isRunning
             return CleanupItem(
-                id: "\(providerID):image:\(image.id)",
+                id: "\(providerID):container:\(container.id)",
                 providerID: providerID,
-                title: name,
-                detail: "Image \(image.id)" + (image.createdSince.map { " · created \($0)" } ?? ""),
-                size: parseSize(image.size),
-                safety: dangling && !inUse ? .safe : .caution,
-                action: .command(ShellCommand("docker", ["image", "rm", image.id])),
-                note: inUse ? "Used by a container (remove the container first)" : (dangling ? "Dangling image" : nil)
+                title: container.names,
+                detail: "\(container.image) · \(container.status ?? container.state ?? "")",
+                size: parseSize(container.size ?? "0B"),
+                safety: running ? .caution : .safe,
+                action: .command(ShellCommand("docker", running ? ["rm", "-f", container.id] : ["rm", container.id])),
+                note: running ? "Running: it will be stopped and removed" : nil,
+                tab: Tab.containers.title,
+                usage: running ? Usage(inUse: true, label: "Running") : Usage(inUse: false, label: "Stopped"),
+                groupOrder: Tab.containers.rawValue
             )
         }
     }
 
-    /// Parses Docker's sizes like "1.2GB", "512MB", "12.3kB", "0B", "1.2GB (50%)". Docker uses SI units.
+    /// `docker image ls` prints one line per *tag*, so an image tagged twice appears twice.
+    /// Lines are merged by image ID: one row per image, listing all of its tags.
+    static func imageItems(from data: Data, containers: [DockerContainerRow], providerID: String) -> [CleanupItem] {
+        var order: [String] = []
+        var byID: [String: [DockerImageRow]] = [:]
+        for row in decodeLines(DockerImageRow.self, from: data) {
+            if byID[row.id] == nil { order.append(row.id) }
+            byID[row.id, default: []].append(row)
+        }
+
+        return order.compactMap { imageID -> CleanupItem? in
+            guard let rows = byID[imageID], let first = rows.first else { return nil }
+            let tags = rows.filter { $0.repository != "<none>" }.map { "\($0.repository):\($0.tag)" }
+            let dangling = tags.isEmpty
+            let users = containers.filter { container in rows.contains { uses(container.image, image: $0) } }
+            let inUse = !users.isEmpty
+
+            let note: String?
+            if inUse {
+                let names = users.prefix(3).map(\.names).joined(separator: ", ")
+                note = "Used by \(names)\(users.count > 3 ? " +\(users.count - 3)" : ""). Remove those containers first."
+            } else if dangling {
+                note = "Dangling (untagged) image"
+            } else if tags.count > 1 {
+                note = "\(tags.count) tags point to this image"
+            } else {
+                note = nil
+            }
+
+            // Removing every tag removes the image. Untagged images are removed by ID.
+            let arguments = ["image", "rm"] + (dangling ? [imageID] : tags)
+            return CleanupItem(
+                id: "\(providerID):image:\(imageID)",
+                providerID: providerID,
+                title: dangling ? "<untagged> \(imageID)" : tags.joined(separator: ", "),
+                detail: "Image \(imageID)" + (first.createdSince.map { " · created \($0)" } ?? ""),
+                size: parseSize(first.size),
+                safety: dangling && !inUse ? .safe : .caution,
+                action: .command(ShellCommand("docker", arguments)),
+                note: note,
+                tab: Tab.images.title,
+                usage: inUse ? .used : .unused,
+                groupOrder: Tab.images.rawValue
+            )
+        }
+    }
+
+    /// A container's `Image` can be "name:tag", "name" (meaning :latest) or an image ID prefix.
+    static func uses(_ containerImage: String, image: DockerImageRow) -> Bool {
+        if image.repository != "<none>" {
+            if containerImage == "\(image.repository):\(image.tag)" { return true }
+            if image.tag == "latest", containerImage == image.repository { return true }
+        }
+        let shortID = image.id.replacingOccurrences(of: "sha256:", with: "")
+        let reference = containerImage.replacingOccurrences(of: "sha256:", with: "")
+        return reference.count >= 12 && (shortID.hasPrefix(reference) || reference.hasPrefix(shortID))
+    }
+
+    static func volumeItems(_ volumes: [DockerVolumeRow], providerID: String) -> [CleanupItem] {
+        volumes.map { volume in
+            let inUse = volume.links > 0
+            return CleanupItem(
+                id: "\(providerID):volume:\(volume.name)",
+                providerID: providerID,
+                title: volume.name,
+                detail: inUse ? "Used by \(volume.links) container\(volume.links == 1 ? "" : "s")" : "Not used by any container",
+                size: volume.size,
+                safety: .caution,
+                action: .command(ShellCommand("docker", ["volume", "rm", volume.name])),
+                note: inUse ? "In use: remove the container first" : "May hold data (databases, uploads)",
+                tab: Tab.volumes.title,
+                usage: inUse ? .used : .unused,
+                groupOrder: Tab.volumes.rawValue
+            )
+        }
+    }
+
+    /// Reads the "Local Volumes space usage" table from `docker system df -v`.
+    /// (The verbose JSON output differs between Docker versions; this table has been stable for years.)
+    static func parseVolumes(verboseDF text: String) -> [DockerVolumeRow] {
+        var rows: [DockerVolumeRow] = []
+        var inSection = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("Local Volumes space usage") { inSection = true; continue }
+            guard inSection else { continue }
+            if trimmed.hasPrefix("VOLUME NAME") || (trimmed.isEmpty && rows.isEmpty) { continue }
+            if trimmed.isEmpty || trimmed.hasSuffix("space usage:") { break }
+            let parts = trimmed.split(whereSeparator: \.isWhitespace)
+            guard parts.count >= 3, let links = Int(parts[1]) else { continue }
+            rows.append(DockerVolumeRow(name: String(parts[0]), links: links, size: parseSize(String(parts[2]))))
+        }
+        return rows
+    }
+
+    static func buildCacheItems(fromDF data: Data, providerID: String) -> [CleanupItem] {
+        decodeLines(DockerDFRow.self, from: data).compactMap { row in
+            guard row.type == "Build Cache" else { return nil }
+            let reclaimable = parseSize(row.reclaimable ?? "0B")
+            guard reclaimable > 0 else { return nil }
+            return CleanupItem(
+                id: "\(providerID):build-cache", providerID: providerID,
+                title: "Build cache", detail: "\(row.totalCount ?? "?") entries",
+                size: reclaimable, safety: .safe,
+                action: .command(ShellCommand("docker", ["builder", "prune", "-a", "-f"])),
+                tab: Tab.buildCache.title, groupOrder: Tab.buildCache.rawValue)
+        }
+    }
+
+    /// Parses Docker's sizes like "1.2GB", "512MB", "12.3kB", "0B", "1.2GB (50%)",
+    /// "0B (virtual 1.2GB)". Docker uses SI units.
     static func parseSize(_ text: String) -> Int64 {
         let token = text.split(separator: " ").first.map(String.init) ?? text
         let units: [(String, Double)] = [("TB", 1e12), ("GB", 1e9), ("MB", 1e6), ("kB", 1e3), ("KB", 1e3), ("B", 1)]

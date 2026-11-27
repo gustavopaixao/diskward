@@ -93,6 +93,13 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
     public var safety: SafetyLevel
     public var action: CleanupAction
     public var note: String?
+    /// Optional tab this item is shown under (e.g. "Containers", "Images").
+    public var tab: String?
+    /// Optional in-use state, shown as a switch inside the tab (e.g. Stopped / Running).
+    public var usage: Usage?
+    /// Order of tabs, and the order actions run in (lower first),
+    /// e.g. containers are removed before the images they use.
+    public var groupOrder: Int
 
     public init(
         id: String,
@@ -104,7 +111,10 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
         lastModified: Date? = nil,
         safety: SafetyLevel = .safe,
         action: CleanupAction,
-        note: String? = nil
+        note: String? = nil,
+        tab: String? = nil,
+        usage: Usage? = nil,
+        groupOrder: Int = 0
     ) {
         self.id = id
         self.providerID = providerID
@@ -116,7 +126,24 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
         self.safety = safety
         self.action = action
         self.note = note
+        self.tab = tab
+        self.usage = usage
+        self.groupOrder = groupOrder
     }
+}
+
+public struct Usage: Sendable, Hashable {
+    public let inUse: Bool
+    /// Label for this state, e.g. "Running" / "Stopped" or "In use" / "Unused".
+    public let label: String
+
+    public init(inUse: Bool, label: String) {
+        self.inUse = inUse
+        self.label = label
+    }
+
+    public static let used = Usage(inUse: true, label: "In use")
+    public static let unused = Usage(inUse: false, label: "Unused")
 }
 
 public enum ProviderAvailability: Sendable, Equatable {
@@ -170,5 +197,26 @@ public enum Paths {
         if path == homePath { return "~" }
         if path.hasPrefix(homePath + "/") { return "~" + path.dropFirst(homePath.count) }
         return path
+    }
+}
+
+extension ShellCommand {
+    /// Copy-pasteable shell form, with arguments quoted when needed.
+    public var shellLine: String {
+        ([(executable as NSString).lastPathComponent] + arguments).map(ShellCommand.quote).joined(separator: " ")
+    }
+
+    static func quote(_ argument: String) -> String {
+        let safe = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-")
+        if !argument.isEmpty, argument.unicodeScalars.allSatisfy(safe.contains) { return argument }
+        return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+extension CleanupItem {
+    /// The command this item runs when cleaned, if it is a command action.
+    public var command: ShellCommand? {
+        if case .command(let command) = action { return command }
+        return nil
     }
 }

@@ -1,0 +1,19 @@
+Images space usage:
+
+REPOSITORY   TAG       IMAGE ID       CREATED        SIZE      SHARED SIZE   UNIQUE SIZE   CONTAINERS
+postgres     16        aaa111         2 months ago   438MB     0B            438MB         1
+
+Containers space usage:
+
+CONTAINER ID   IMAGE         COMMAND                  LOCAL VOLUMES   SIZE      CREATED       STATUS                   NAMES
+c1c1c1c1c1c1   postgres:16   "docker-entrypoint.s…"   1               63B       2 weeks ago   Up 3 days                db
+
+Local Volumes space usage:
+
+VOLUME NAME   LINKS     SIZE
+pgdata        1         512MB
+old_cache     0         1.5GB
+
+Build cache usage: 0B
+
+CACHE ID   CACHE TYPE   SIZE      CREATED   LAST USED   USAGE     SHARED

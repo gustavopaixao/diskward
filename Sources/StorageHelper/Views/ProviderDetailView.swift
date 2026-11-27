@@ -7,6 +7,10 @@ struct ProviderDetailView: View {
     let providerID: String
     @State private var sortOrder = [KeyPathComparator(\CleanupItem.size, order: .reverse)]
     @State private var confirmItems: [CleanupItem]?
+    /// Selected tab (for providers whose items have tabs, e.g. Docker).
+    @State private var selectedTab: String?
+    /// Inside a tab: show in-use items instead of unused ones.
+    @State private var showInUse = false
 
     var body: some View {
         if let state = model.state(for: providerID) {
@@ -40,12 +44,13 @@ struct ProviderDetailView: View {
                     .lineLimit(3)
                     .help(note)
             }
+            let visible = visibleItems(state)
             HStack {
-                Text("\(state.items.count) items · \(ByteFormat.string(state.total))")
+                Text("\(visible.count) items · \(ByteFormat.string(visible.reduce(0) { $0 + $1.size }))")
                     .font(.headline.monospacedDigit())
                 Spacer()
-                Button("Select All") { model.setSelected(true, items: state.items) }
-                Button("Select None") { model.setSelected(false, items: state.items) }
+                Button("Select All") { model.setSelected(true, items: visible) }
+                Button("Select None") { model.setSelected(false, items: visible) }
                 Button { model.rescan(providerID: providerID) } label: { Image(systemName: "arrow.clockwise") }
                     .help("Rescan \(state.provider.title)")
                 Button("Clean \(ByteFormat.string(selected.reduce(0) { $0 + $1.size }))") {
@@ -78,13 +83,88 @@ struct ProviderDetailView: View {
         case .done where state.items.isEmpty:
             ContentUnavailableView("Nothing to clean", systemImage: "checkmark.circle")
         case .done:
-            itemTable(state)
+            VStack(spacing: 0) {
+                filterBar(state)
+                if visibleItems(state).isEmpty {
+                    ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
+                } else {
+                    itemTable(state)
+                }
+            }
+        }
+    }
+
+    // MARK: Tabs and in-use switch
+
+    /// Tab names in display order (empty for providers without tabs).
+    private func tabs(_ state: ProviderState) -> [String] {
+        var seen = Set<String>()
+        return state.items
+            .sorted { $0.groupOrder < $1.groupOrder }
+            .compactMap(\.tab)
+            .filter { seen.insert($0).inserted }
+    }
+
+    private func currentTab(_ state: ProviderState) -> String? {
+        let all = tabs(state)
+        if let selectedTab, all.contains(selectedTab) { return selectedTab }
+        return all.first
+    }
+
+    private func itemsInCurrentTab(_ state: ProviderState) -> [CleanupItem] {
+        guard let tab = currentTab(state) else { return state.items }
+        return state.items.filter { $0.tab == tab }
+    }
+
+    /// Items shown in the table: current tab, then the in-use switch.
+    private func visibleItems(_ state: ProviderState) -> [CleanupItem] {
+        let inTab = itemsInCurrentTab(state)
+        guard inTab.contains(where: { $0.usage != nil }) else { return inTab }
+        return inTab.filter { ($0.usage?.inUse ?? false) == showInUse }
+    }
+
+    @ViewBuilder private func filterBar(_ state: ProviderState) -> some View {
+        let allTabs = tabs(state)
+        let inTab = itemsInCurrentTab(state)
+        let usages = inTab.compactMap(\.usage)
+        if !allTabs.isEmpty {
+            HStack(spacing: 16) {
+                Picker("Show", selection: Binding(
+                    get: { currentTab(state) ?? "" },
+                    set: { selectedTab = $0; showInUse = false }
+                )) {
+                    ForEach(allTabs, id: \.self) { tab in
+                        let items = state.items.filter { $0.tab == tab }
+                        Text("\(tab)  \(ByteFormat.string(items.reduce(0) { $0 + $1.size }))").tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+
+                if !usages.isEmpty {
+                    let unusedLabel = usages.first { !$0.inUse }?.label ?? Usage.unused.label
+                    let usedLabel = usages.first { $0.inUse }?.label ?? Usage.used.label
+                    let unusedCount = usages.filter { !$0.inUse }.count
+                    Picker("Usage", selection: $showInUse) {
+                        Text("\(unusedLabel) (\(unusedCount))").tag(false)
+                        Text("\(usedLabel) (\(usages.count - unusedCount))").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            Divider()
         }
     }
 
     private func itemTable(_ state: ProviderState) -> some View {
-        let items = state.items.sorted(using: sortOrder)
-        let maxSize = state.items.map(\.size).max() ?? 0
+        let items = visibleItems(state).sorted(using: sortOrder)
+        let maxSize = items.map(\.size).max() ?? 0
         return Table(items, sortOrder: $sortOrder) {
             TableColumn("") { item in
                 Toggle("", isOn: Binding(
@@ -125,30 +205,63 @@ struct ProviderDetailView: View {
             .width(min: 90, ideal: 120, max: 160)
 
             TableColumn("Action") { item in
-                Text(item.action.summary)
-                    .font(.caption)
-                    .foregroundStyle(item.action.isPermanent ? .red : .secondary)
-                    .lineLimit(1)
-                    .help(item.action.summary)
+                ActionCell(item: item) { confirmItems = [item] }
             }
-            .width(min: 100, ideal: 160)
+            .width(min: 220, ideal: 300)
         }
         .contextMenu(forSelectionType: CleanupItem.ID.self) { ids in
-            let selected = items.filter { ids.contains($0.id) }
+            let selected = state.items.filter { ids.contains($0.id) }
             if let url = selected.first?.url {
                 Button("Reveal in Finder") { Reveal.inFinder(url) }
-                Button("Copy Path") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(url.path, forType: .string)
+                Button("Copy Path") { Pasteboard.copy(url.path) }
+                Divider()
+            }
+            let commands = selected.compactMap(\.command)
+            if !commands.isEmpty {
+                Button("Copy Command\(commands.count > 1 ? "s" : "")") {
+                    Pasteboard.copy(commands.map(\.shellLine).joined(separator: "\n"))
                 }
+                Button("Open in Terminal") { TerminalLauncher.run(commands) }
                 Divider()
             }
             if !selected.isEmpty {
-                Button("Clean \(selected.count == 1 ? selected[0].title : "\(selected.count) items")…") {
+                Button(commands.count == selected.count ? "Run Now…" : "Clean \(selected.count == 1 ? selected[0].title : "\(selected.count) items")…") {
                     confirmItems = selected
                 }
             }
         }
+    }
+}
+
+/// Shows what Clean will do. For commands: the command itself, with Run / Copy / Terminal buttons.
+struct ActionCell: View {
+    let item: CleanupItem
+    let run: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let command = item.command {
+                Text("$ \(command.display)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.red.opacity(0.85))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help("Runs when you clean this item: \(command.shellLine)")
+                Spacer(minLength: 4)
+                Button(action: run) { Image(systemName: "play.fill") }
+                    .help("Run now (asks for confirmation)")
+                Button { Pasteboard.copy(command.shellLine) } label: { Image(systemName: "doc.on.doc") }
+                    .help("Copy command")
+                Button { TerminalLauncher.run([command]) } label: { Image(systemName: "terminal") }
+                    .help("Open in Terminal")
+            } else {
+                Text(item.action.summary)
+                    .font(.caption)
+                    .foregroundStyle(item.action.isPermanent ? .red : .secondary)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.borderless)
     }
 }
 

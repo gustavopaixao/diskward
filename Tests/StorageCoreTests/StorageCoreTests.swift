@@ -185,19 +185,72 @@ func fixture(_ name: String) throws -> Data {
         #expect(DockerProvider.parseSize("garbage") == 0)
     }
 
-    @Test func dockerSummaryAndImages() throws {
-        let summary = DockerProvider.summaryItems(fromDF: try fixture("docker-df.jsonl"), providerID: "docker")
-        #expect(Set(summary.map(\.title)) == ["Stopped containers", "Unused volumes"])
-        #expect(summary.first { $0.title == "Unused volumes" }?.safety == .caution)
+    @Test func dockerContainersGroupedByState() throws {
+        let containers = DockerProvider.decodeLines(DockerContainerRow.self, from: try fixture("docker-ps.jsonl"))
+        let items = DockerProvider.containerItems(containers, providerID: "docker")
+        let running = try #require(items.first { $0.title == "db" })
+        #expect(running.tab == "Containers" && running.usage?.label == "Running")
+        #expect(running.safety == .caution)
+        #expect(running.command == ShellCommand("docker", ["rm", "-f", "c1c1c1c1c1c1"]))
+        let stopped = try #require(items.first { $0.title == "old-api" })
+        #expect(stopped.tab == "Containers" && stopped.usage?.inUse == false)
+        #expect(stopped.safety == .safe)
+        #expect(stopped.size == 120_000_000)
+    }
 
-        let images = DockerProvider.imageItems(from: try fixture("docker-images.jsonl"), usedBy: ["postgres:16"], providerID: "docker")
-        #expect(images.count == 2)
-        let postgres = try #require(images.first { $0.title == "postgres:16" })
-        #expect(postgres.safety == .caution)
-        #expect(postgres.note?.contains("Used by a container") == true)
-        let dangling = try #require(images.first { $0.title == "<untagged>" })
+    @Test func dockerImagesMergeTagsAndDetectUsage() throws {
+        let containers = DockerProvider.decodeLines(DockerContainerRow.self, from: try fixture("docker-ps.jsonl"))
+        let images = DockerProvider.imageItems(from: try fixture("docker-images.jsonl"), containers: containers, providerID: "docker")
+        // postgres:16 and postgres:latest are the same image: one row, not two.
+        #expect(images.count == 3)
+        #expect(Set(images.map(\.id)).count == images.count)
+
+        let postgres = try #require(images.first { $0.detail.contains("aaa111") })
+        #expect(postgres.title == "postgres:16, postgres:latest")
+        #expect(postgres.tab == "Images" && postgres.usage == .used)
+        #expect(postgres.note?.contains("db") == true)
+        #expect(postgres.command == ShellCommand("docker", ["image", "rm", "postgres:16", "postgres:latest"]))
+
+        // node:20 is used by a stopped container: still "in use" (docker refuses to remove it).
+        let node = try #require(images.first { $0.title == "node:20" })
+        #expect(node.usage == .used)
+
+        let dangling = try #require(images.first { $0.title.hasPrefix("<untagged>") })
+        #expect(dangling.usage == .unused)
         #expect(dangling.safety == .safe)
-        #expect(dangling.size == 1_210_000_000)
+        #expect(dangling.command == ShellCommand("docker", ["image", "rm", "bbb222"]))
+    }
+
+    @Test func dockerVolumesFromVerboseDF() throws {
+        let text = String(decoding: try fixture("docker-df-verbose.txt"), as: UTF8.self)
+        let volumes = DockerProvider.parseVolumes(verboseDF: text)
+        #expect(volumes == [
+            DockerVolumeRow(name: "pgdata", links: 1, size: 512_000_000),
+            DockerVolumeRow(name: "old_cache", links: 0, size: 1_500_000_000),
+        ])
+        let items = DockerProvider.volumeItems(volumes, providerID: "docker")
+        #expect(items.first { $0.title == "pgdata" }?.usage == .used)
+        #expect(items.first { $0.title == "old_cache" }?.usage == .unused)
+    }
+
+    @Test func dockerBuildCacheOnlyFromDF() throws {
+        let items = DockerProvider.buildCacheItems(fromDF: try fixture("docker-df.jsonl"), providerID: "docker")
+        #expect(items.isEmpty) // fixture has 0B build cache
+    }
+
+    @Test func cleanerRunsContainersBeforeImages() {
+        let image = CleanupItem(id: "i", providerID: "docker", title: "img", size: 1,
+                                action: .command(ShellCommand("docker", ["image", "rm", "x"])), groupOrder: 2)
+        let container = CleanupItem(id: "c", providerID: "docker", title: "ctr", size: 1,
+                                    action: .command(ShellCommand("docker", ["rm", "y"])), groupOrder: 0)
+        let file = CleanupItem(id: "f", providerID: "caches", title: "f", size: 1, action: .trash([]))
+        #expect(Cleaner.executionOrder([image, file, container]).map(\.id) == ["f", "c", "i"])
+    }
+
+    @Test func shellLineQuoting() {
+        #expect(ShellCommand("docker", ["image", "rm", "postgres:16"]).shellLine == "docker image rm postgres:16")
+        #expect(ShellCommand("/usr/bin/xcrun", ["simctl", "delete", "a b"]).shellLine == "xcrun simctl delete 'a b'")
+        #expect(ShellCommand("echo", ["it's"]).shellLine == "echo 'it'\\''s'")
     }
 
     @Test func jenkinsKeepsNewestBuilds() async throws {

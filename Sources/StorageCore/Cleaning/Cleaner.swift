@@ -4,6 +4,8 @@ public struct CleanOutcome: Sendable, Identifiable {
     public var id: String { item.id }
     public let item: CleanupItem
     public let error: String?
+    /// Combined stdout/stderr for command actions (shown in the report like a terminal log).
+    public var output: String? = nil
     public var succeeded: Bool { error == nil }
 }
 
@@ -49,10 +51,10 @@ public struct Cleaner: Sendable {
         var report = CleanReport()
         report.freeBefore = DiskInfo.current(for: home)?.available
 
-        for item in items {
+        for item in Cleaner.executionOrder(items) {
             if Task.isCancelled { break }
-            let error = await perform(item)
-            report.outcomes.append(CleanOutcome(item: item, error: error))
+            let (error, output) = await perform(item)
+            report.outcomes.append(CleanOutcome(item: item, error: error, output: output))
             log.record(item: item, error: error)
         }
 
@@ -72,8 +74,15 @@ public struct Cleaner: Sendable {
         return report
     }
 
-    /// Returns an error message, or nil on success.
-    private func perform(_ item: CleanupItem) async -> String? {
+    /// Stable sort by `groupOrder`, so e.g. Docker containers go before the images they use.
+    static func executionOrder(_ items: [CleanupItem]) -> [CleanupItem] {
+        items.enumerated()
+            .sorted { ($0.element.groupOrder, $0.offset) < ($1.element.groupOrder, $1.offset) }
+            .map(\.element)
+    }
+
+    /// Returns an error message (nil on success) and, for commands, their output.
+    private func perform(_ item: CleanupItem) async -> (String?, String?) {
         do {
             switch item.action {
             case .trash(let urls):
@@ -87,22 +96,26 @@ public struct Cleaner: Sendable {
                         failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
                     }
                 }
-                return failures.isEmpty ? nil : failures.joined(separator: "\n")
+                return (failures.isEmpty ? nil : failures.joined(separator: "\n"), nil)
 
             case .command(let command):
                 let output = try await ShellRunner.run(command.executable, command.arguments, timeout: 900)
+                let log = "$ \(command.display)\n" + [output.stdoutString, output.stderr]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n")
                 guard output.succeeded else {
                     let message = output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return message.isEmpty ? "Command failed with status \(output.status)" : message
+                    return (message.isEmpty ? "Command failed with status \(output.status)" : message, log)
                 }
-                return nil
+                return (nil, log)
 
             case .emptyTrash(let trash):
                 try emptyTrash(trash)
-                return nil
+                return (nil, nil)
             }
         } catch {
-            return error.localizedDescription
+            return (error.localizedDescription, nil)
         }
     }
 

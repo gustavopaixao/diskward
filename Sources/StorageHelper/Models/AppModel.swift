@@ -106,7 +106,9 @@ final class AppModel {
                 state.items = []
             case .success(let items):
                 state.status = .done
-                state.items = items
+                // Tables need unique IDs; duplicates would render twice and be counted twice.
+                var seen = Set<CleanupItem.ID>()
+                state.items = items.filter { seen.insert($0.id).inserted }
             case .failure(let error as ProviderError):
                 state.status = .unavailable(error.message)
                 state.items = []

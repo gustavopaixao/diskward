@@ -87,7 +87,7 @@ struct CleanConfirmSheet: View {
         case .trash(let urls):
             urls.count == 1 ? "→ Trash: \(Paths.display(urls[0]))" : "→ Trash: \(urls.count) items in \(item.detail)"
         case .command(let command):
-            "$ \(command.display)"
+            "$ \(command.shellLine)"
         case .emptyTrash:
             "Permanently delete everything in the Trash"
         }
@@ -97,6 +97,7 @@ struct CleanConfirmSheet: View {
 struct CleanReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     let report: CleanReport
+    @State private var showOutput = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -140,6 +141,22 @@ struct CleanReportSheet: View {
                     }
                 }
                 .frame(minHeight: 140)
+            }
+
+            let logs = report.outcomes.compactMap(\.output)
+            if !logs.isEmpty {
+                DisclosureGroup("Command output (\(logs.count))", isExpanded: $showOutput) {
+                    ScrollView {
+                        Text(logs.joined(separator: "\n\n"))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.green)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                    }
+                    .frame(height: 180)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.85)))
+                }
             }
 
             HStack {

@@ -547,3 +547,82 @@ func fixture(_ name: String) throws -> Data {
         #expect(ArchivesProvider.appName(fromArchiveName: "Custom") == "Custom")
     }
 }
+
+@Suite struct DevToolsTests {
+    @Test func splitsNameAndVersion() {
+        #expect(Versioned.splitNameVersion("chromium-1140")! == ("chromium", "1140"))
+        #expect(Versioned.splitNameVersion("chromium_headless_shell-1155")! == ("chromium_headless_shell", "1155"))
+        #expect(Versioned.splitNameVersion("ms-python.python-2024.1.0-darwin-arm64")! == ("ms-python.python", "2024.1.0-darwin-arm64"))
+        #expect(Versioned.splitNameVersion("foo-3d-tools-1.2.0")! == ("foo-3d-tools", "1.2.0"))
+        #expect(Versioned.splitNameVersion("noversion") == nil)
+    }
+
+    @Test func playwrightKeepsNewestPerBrowser() async throws {
+        let home = try TempHome()
+        for name in ["chromium-1100", "chromium-1140", "firefox-1450", "webkit-2000"] {
+            try home.file("Library/Caches/ms-playwright/\(name)/bin", bytes: 10_000)
+        }
+        try home.dir("Library/Caches/ms-playwright/.links")
+        let items = try await PlaywrightProvider(home: home.url).scan()
+        #expect(items.count == 4)
+        #expect(items.first { $0.title == "chromium build 1100" }?.safety == .safe)
+        #expect(items.first { $0.title == "chromium build 1140" }?.safety == .caution)
+        #expect(items.first { $0.title == "firefox build 1450" }?.safety == .caution)
+    }
+
+    @Test func ollamaListParsing() {
+        let text = """
+        NAME                    ID              SIZE      MODIFIED
+        llama3.1:8b             42182419e950    4.7 GB    2 weeks ago
+        nomic-embed-text:latest 0a109f422b47    274 MB    3 months ago
+        """
+        #expect(AIModelsProvider.parseOllama(text) == [
+            OllamaModel(name: "llama3.1:8b", size: 4_700_000_000, modified: "2 weeks ago"),
+            OllamaModel(name: "nomic-embed-text:latest", size: 274_000_000, modified: "3 months ago"),
+        ])
+        #expect(AIModelsProvider.huggingFaceName("models--meta-llama--Llama-3-8B") == "meta-llama/Llama-3-8B")
+        #expect(AIModelsProvider.huggingFaceName("datasets--squad") == "squad (dataset)")
+    }
+
+    @Test func editorsListOnlyOldExtensionsAndCaches() async throws {
+        let home = try TempHome()
+        try home.file(".vscode/extensions/ms-python.python-2024.1.0/x", bytes: 10_000)
+        try home.file(".vscode/extensions/ms-python.python-2024.10.0/x", bytes: 10_000)
+        try home.file(".vscode/extensions/esbenp.prettier-vscode-10.1.0/x", bytes: 10_000)
+        try home.file("Library/Application Support/Cursor/CachedData/blob", bytes: 50_000)
+        try home.file("Library/Caches/JetBrains/IntelliJIdea2023.3/x", bytes: 10_000)
+        try home.file("Library/Caches/JetBrains/IntelliJIdea2024.2/x", bytes: 10_000)
+        let items = try await EditorsProvider(home: home.url).scan()
+        let titles = Set(items.map(\.title))
+        #expect(titles.contains("VS Code extension ms-python.python 2024.1.0"))
+        #expect(!titles.contains("VS Code extension ms-python.python 2024.10.0")) // current, kept out
+        #expect(!titles.contains { $0.contains("prettier") })                    // only one version
+        #expect(titles.contains("Cursor: CachedData"))
+        #expect(items.first { $0.title == "JetBrains IntelliJIdea 2023.3 caches" }?.safety == .safe)
+        #expect(items.first { $0.title == "JetBrains IntelliJIdea 2024.2 caches" }?.safety == .caution)
+    }
+
+    @Test func androidAvdTrashesIniToo() async throws {
+        let home = try TempHome()
+        try home.file(".android/avd/Pixel_8_API_34.avd/userdata.img", bytes: 100_000)
+        try home.file(".android/avd/Pixel_8_API_34.ini", bytes: 100)
+        try home.file("Library/Android/sdk/system-images/android-34/google_apis/arm64-v8a/system.img", bytes: 100_000)
+        let items = try await AndroidProvider(home: home.url, environment: [:]).scan()
+        let avd = try #require(items.first { $0.title == "Emulator: Pixel 8 API 34" })
+        guard case .trash(let urls) = avd.action else { Issue.record("expected trash"); return }
+        #expect(urls.map(\.lastPathComponent) == ["Pixel_8_API_34.avd", "Pixel_8_API_34.ini"])
+        #expect(items.contains { $0.title == "android-34 · google_apis · arm64-v8a" })
+        for url in urls { try SafetyGuard(home: home.url).validate(url) }
+    }
+
+    @Test func otherXcodeInstallsAreManual() async throws {
+        let home = try TempHome()
+        let apps = try TempHome()
+        try apps.file("Xcode-15.4.app/Contents/MacOS/Xcode", bytes: 100_000)
+        try home.file("Library/Developer/Xcode/UserData/Previews/x", bytes: 10_000)
+        let items = try await XcodeExtrasProvider(home: home.url, applications: apps.url).scan()
+        let xcode = try #require(items.first { $0.title.hasPrefix("Xcode-15.4") })
+        #expect(!xcode.action.isActionable)
+        #expect(items.contains { $0.title == "SwiftUI Previews" })
+    }
+}

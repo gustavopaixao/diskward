@@ -4,12 +4,20 @@ A native macOS app that scans your Mac for space you can safely reclaim and clea
 
 | Area | What it finds |
 |---|---|
-| **System** | App caches (`~/Library/Caches`), logs, Trash, large or old files in Downloads |
-| **Xcode** | DerivedData, Archives, Device Support, Simulators, Simulator Runtimes |
-| **Containers & CI** | Docker images, stopped containers, unused volumes, build cache; Jenkins workspaces and old builds |
+| **System** | App caches, logs, Trash, large or old Downloads, iPhone/iPad backups, local Time Machine snapshots, Mail and Messages attachments (instructions only) |
+| **Xcode** | DerivedData, Archives, Device Support, Simulators, Simulator Runtimes, SwiftUI Previews, simulator caches, other Xcode installs (instructions only) |
+| **Containers & CI** | Docker (tabs for containers, images, volumes and build cache, each split into unused and in use), Jenkins workspaces and old builds |
 | **Package managers** | Homebrew, npm, Yarn, pnpm, Bun, pip, uv, Poetry, Gradle, Maven, CocoaPods, SwiftPM, Carthage, Go |
+| **Developer tools** | Android emulators and system images; Playwright browser versions; AI models (Ollama, Hugging Face, LM Studio); VS Code, Cursor and Windsurf caches and old extension versions; JetBrains caches per IDE version |
 | **Projects** | `node_modules` folders in your project folders (configurable in Settings) |
-| **Disk Explorer** | Drill-down of the biggest folders in your home folder, any folder, or the whole disk |
+
+The app also includes:
+
+- **Overview:** shows where your disk space is (reclaimable, other used, free) and what changed since the last scan.
+- **What Changed:** every full scan is saved, so you can see which sources and items grew since the previous scan, or since 1 day, 1 week or 1 month ago. A chart shows free space over time.
+- **Cleanup Rules:** saved rules such as "DerivedData older than 14 days", "stopped Docker containers" or "keep the newest 3 archives per app". Click **Apply Rules** to review everything they match, then clean.
+- **Menu bar:** shows free space, warns you when it drops below a limit (30 GB by default), runs a scan once a day, and can open at login.
+- **Disk Explorer:** drill down into the biggest folders in your home folder, any folder, or the whole disk.
 
 Sections for tools you don't have (for example Jenkins) are hidden automatically.
 
@@ -51,7 +59,9 @@ SIGN_IDENTITY="Apple Development: …" scripts/build-app.sh
   - pnpm: `pnpm store prune`
 - **Safety guard:** every path is checked by `SafetyGuard` right before deletion. It must be inside your home folder and not a protected folder such as `~/Documents`, `~/Library` itself, `~/.ssh`, Keychains or iCloud Drive. Symlinks can't redirect a delete outside it.
 - **Running apps:** you get a warning if a related app is running (Xcode, Simulator).
+- **Manual items:** items the app should not delete itself (Mail, Messages, other Xcode installs) are listed with instructions. They can't be selected.
 - **Log:** every action is written to `~/Library/Logs/StorageHelper/cleanup.log`.
+- **Scan history:** stored in `~/Library/Application Support/StorageHelper/history.json`.
 
 ## Project layout
 
@@ -63,7 +73,9 @@ Sources/
     Scanning/           SizeCalculator (fts, allocated size), ShellRunner, DiskInfo
     Providers/          one provider per source; ProviderRegistry lists them all
     Cleaning/           Cleaner, SafetyGuard, CleanupLog
-  StorageHelper/        SwiftUI app (Overview, per-provider tables, Disk Explorer)
+    History/            ScanHistory (snapshots and growth)
+    Rules/              CleanupRule and RuleEngine
+  StorageHelper/        SwiftUI app (Overview, What Changed, Rules, provider tables, Disk Explorer, menu bar)
   storage-report/       read-only CLI report
 Tests/StorageCoreTests/ unit tests plus JSON fixtures for simctl and docker output
 scripts/build-app.sh    builds and signs the .app bundle

@@ -18,6 +18,7 @@ public enum ProviderRegistry {
             DeviceSupportProvider(home: home),
             SimulatorsProvider(home: home),
             SimulatorRuntimesProvider(),
+            XcodeExtrasProvider(home: home),
             // Containers & CI
             DockerProvider(),
             JenkinsProvider(home: home),
@@ -28,6 +29,11 @@ public enum ProviderRegistry {
             KnownPathsProvider.jvm(home: home),
             KnownPathsProvider.apple(home: home),
             KnownPathsProvider.go(home: home),
+            // Developer tools
+            AndroidProvider(home: home),
+            PlaywrightProvider(home: home),
+            AIModelsProvider(home: home),
+            EditorsProvider(home: home),
             // Projects
             NodeModulesProvider(home: home, roots: nodeModulesRoots),
         ]

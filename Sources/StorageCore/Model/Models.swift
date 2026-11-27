@@ -2,7 +2,7 @@ import Foundation
 
 /// Sidebar grouping for providers.
 public enum CleanupCategory: String, CaseIterable, Sendable, Identifiable, Codable {
-    case system, xcode, containers, packageManagers, projects
+    case system, xcode, containers, packageManagers, devTools, projects
 
     public var id: String { rawValue }
 
@@ -12,6 +12,7 @@ public enum CleanupCategory: String, CaseIterable, Sendable, Identifiable, Codab
         case .xcode: "Xcode"
         case .containers: "Containers & CI"
         case .packageManagers: "Package Managers"
+        case .devTools: "Developer Tools"
         case .projects: "Projects"
         }
     }

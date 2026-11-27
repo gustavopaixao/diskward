@@ -11,7 +11,7 @@ public struct UserCachesProvider: CleanupProvider {
     /// Shown by more specific providers instead, so they aren't counted twice.
     static let excluded: Set<String> = [
         "Homebrew", "pip", "pypoetry", "CocoaPods", "Yarn", "pnpm", "org.swift.swiftpm",
-        "org.carthage.CarthageKit", "go-build", "StorageHelper",
+        "org.carthage.CarthageKit", "go-build", "StorageHelper", "ms-playwright", "JetBrains",
     ]
 
     public init(home: URL = Paths.home) { self.home = home }

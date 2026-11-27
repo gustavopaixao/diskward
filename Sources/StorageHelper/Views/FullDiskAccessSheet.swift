@@ -24,7 +24,7 @@ struct FullDiskAccessSheet: View {
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Allow Full Disk Access").font(.title2.bold())
-                    Text("Storage Helper needs it to measure the Trash, app caches and other protected folders. Without it, the numbers will be too low.")
+                    Text("Storage Developer Helper needs it to measure the Trash, app caches and other protected folders. Without it, the numbers will be too low.")
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 }
@@ -38,7 +38,7 @@ struct FullDiskAccessSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                step(2, "Turn on Storage Helper. If it isn't listed, click + and choose the app, or drag it into the list.") {
+                step(2, "Turn on Storage Developer Helper. If it isn't listed, click + and choose the app, or drag it into the list.") {
                     Button("Show App in Finder") {
                         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                     }

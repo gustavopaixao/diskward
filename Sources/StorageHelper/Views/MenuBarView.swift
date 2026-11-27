@@ -56,7 +56,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button { open(route: .overview) } label: { Label("Open Storage Helper", systemImage: "macwindow") }
+            Button { open(route: .overview) } label: { Label("Open Storage Developer Helper", systemImage: "macwindow") }
             Button { open(route: .changes) } label: { Label("What Changed", systemImage: "chart.line.uptrend.xyaxis") }
             let matches = model.ruleMatches
             Button { open(route: .rules) } label: {

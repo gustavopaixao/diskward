@@ -1,4 +1,4 @@
-# Storage Helper
+# Storage Developer Helper
 
 A native macOS app that scans your Mac for space you can safely reclaim and cleans it up.
 
@@ -26,9 +26,9 @@ Sections for tools you don't have (for example Jenkins) are hidden automatically
 You need Xcode (or its command-line tools) on macOS 14 or later.
 
 ```bash
-scripts/build-app.sh                       # builds "build/Storage Helper.app"
-open "build/Storage Helper.app"
-cp -R "build/Storage Helper.app" /Applications/   # optional
+scripts/build-app.sh                       # builds "build/Storage Developer Helper.app"
+open "build/Storage Developer Helper.app"
+cp -R "build/Storage Developer Helper.app" /Applications/   # optional
 ```
 
 Other ways to run it:
@@ -38,7 +38,7 @@ Other ways to run it:
 
 ### Full Disk Access
 
-macOS hides the Trash and some caches from apps unless you grant Full Disk Access. Without it, the numbers will be too low. Grant it in **System Settings → Privacy & Security → Full Disk Access**: turn on Storage Helper, then click **Scan**. The app shows a banner with a button to open that settings pane.
+macOS hides the Trash and some caches from apps unless you grant Full Disk Access. Without it, the numbers will be too low. Grant it in **System Settings → Privacy & Security → Full Disk Access**: turn on Storage Developer Helper, then click **Scan**. The app shows a banner with a button to open that settings pane.
 
 Full Disk Access is tied to the app's code signature. The build script signs ad-hoc by default, and macOS may then forget the permission after each rebuild. To avoid that, sign with your own certificate:
 

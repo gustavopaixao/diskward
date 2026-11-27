@@ -76,7 +76,7 @@ struct FullDiskAccessBanner: View {
             Image(systemName: "lock.shield").font(.title2).foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Full Disk Access is off").font(.headline)
-                Text("Without it, Storage Helper can't see the Trash and some caches, so the numbers will be too low. Turn on Storage Helper in System Settings › Privacy & Security › Full Disk Access, then scan again.")
+                Text("Without it, Storage Developer Helper can't see the Trash and some caches, so the numbers will be too low. Turn on Storage Developer Helper in System Settings › Privacy & Security › Full Disk Access, then scan again.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

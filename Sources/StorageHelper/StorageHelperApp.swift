@@ -10,7 +10,7 @@ struct StorageHelperApp: App {
     @AppStorage(AppSettings.showMenuBarKey) private var showMenuBar = true
 
     var body: some Scene {
-        WindowGroup("Storage Helper", id: "main") {
+        WindowGroup("Storage Developer Helper", id: "main") {
             ContentView()
                 .environment(model)
                 .environment(explorer)

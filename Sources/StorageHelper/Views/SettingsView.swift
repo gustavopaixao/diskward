@@ -26,7 +26,7 @@ struct GeneralSettingsView: View {
         Form {
             Section("Menu bar") {
                 Toggle("Show free space in the menu bar", isOn: $showMenuBar)
-                Text("When it's on, closing the window keeps Storage Helper running in the menu bar.")
+                Text("When it's on, closing the window keeps Storage Developer Helper running in the menu bar.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }

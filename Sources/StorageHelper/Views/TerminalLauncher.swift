@@ -20,7 +20,7 @@ enum TerminalLauncher {
             "#!/bin/zsh",
             "export PATH=\"\(path):$PATH\"",
             "clear",
-            "echo 'Storage Helper: running \(commands.count) command\(commands.count == 1 ? "" : "s")'",
+            "echo 'Storage Developer Helper: running \(commands.count) command\(commands.count == 1 ? "" : "s")'",
             "echo",
         ]
         for command in commands {
@@ -30,7 +30,7 @@ enum TerminalLauncher {
             lines.append("echo")
         }
         lines += [
-            "echo 'Done. Rescan in Storage Helper (⌘R) to update the numbers.'",
+            "echo 'Done. Rescan in Storage Developer Helper (⌘R) to update the numbers.'",
             "rm -f \"$0\"", // remove this temporary script
             "exec zsh -l",  // keep the window open as a normal shell
         ]

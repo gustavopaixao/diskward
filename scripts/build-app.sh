@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds build/Storage Helper.app from the Swift package.
+# Builds build/Storage Developer Helper.app from the Swift package.
 #
 #   scripts/build-app.sh              # release build, ad-hoc signed
 #   SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" scripts/build-app.sh
@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP="build/Storage Helper.app"
+APP="build/Storage Developer Helper.app"
 swift build -c release --product StorageHelper
 BIN="$(swift build -c release --show-bin-path)/StorageHelper"
 

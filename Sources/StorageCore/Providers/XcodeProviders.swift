@@ -68,10 +68,31 @@ public struct ArchivesProvider: CleanupProvider {
                 url, providerID: id, title: url.deletingPathExtension().lastPathComponent,
                 home: home, safety: .caution
             ) else { return nil }
-            item.detail = url.deletingLastPathComponent().lastPathComponent // date folder
+            let info = ArchivesProvider.info(at: url)
+            item.detail = [info.bundleID, url.deletingLastPathComponent().lastPathComponent]
+                .compactMap { $0 }.joined(separator: " · ")
+            if let created = info.created { item.lastModified = created }
+            item.meta["app"] = info.bundleID ?? ArchivesProvider.appName(fromArchiveName: item.title)
             return item
         }
         return items.compactMap { $0 }.sorted { $0.size > $1.size }
+    }
+}
+
+extension ArchivesProvider {
+    static func info(at archive: URL) -> (bundleID: String?, created: Date?) {
+        guard let data = try? Data(contentsOf: archive.appendingPathComponent("Info.plist")),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return (nil, nil) }
+        let app = plist["ApplicationProperties"] as? [String: Any]
+        return (app?["CFBundleIdentifier"] as? String, plist["CreationDate"] as? Date)
+    }
+
+    /// "MyApp 2025-01-10 14.32.11" → "MyApp" (Xcode's default archive naming).
+    static func appName(fromArchiveName name: String) -> String {
+        let pattern = #" \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.\d{2}$"#
+        guard let range = name.range(of: pattern, options: .regularExpression) else { return name }
+        return String(name[..<range.lowerBound])
     }
 }
 
@@ -174,7 +195,8 @@ public struct SimulatorsProvider: CleanupProvider {
             lastModified: device.lastBootedAt.flatMap(parseDate),
             safety: (!available && !booted) ? .safe : .caution,
             action: .command(ShellCommand("xcrun", ["simctl", "delete", device.udid])),
-            note: note
+            note: note,
+            meta: ["available": available ? "true" : "false", "booted": booted ? "true" : "false"]
         )
     }
 

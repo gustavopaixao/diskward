@@ -35,6 +35,14 @@ final class AppModel {
     /// Past full scans, oldest first (for "What Changed").
     var history: [ScanSnapshot] = []
 
+    /// Cleanup rules, saved whenever they change.
+    var rules: [CleanupRule] = AppSettings.rules {
+        didSet { AppSettings.rules = rules }
+    }
+
+    /// Items the enabled rules select from the current scan results.
+    var ruleMatches: [CleanupItem] { RuleEngine.apply(rules, to: allItems) }
+
     private var scanTask: Task<Void, Never>?
     private let cleaner = Cleaner()
     private let scanHistory = ScanHistory()
@@ -243,6 +251,19 @@ final class AppModel {
 }
 
 enum AppSettings {
+    static let rulesKey = "cleanupRules"
+
+    static var rules: [CleanupRule] {
+        get {
+            let stored = UserDefaults.standard.data(forKey: rulesKey)
+                .flatMap { try? JSONDecoder().decode([CleanupRule].self, from: $0) } ?? []
+            return RuleEngine.merged(stored)
+        }
+        set {
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: rulesKey)
+        }
+    }
+
     static let showMenuBarKey = "showMenuBar"
     static let lowSpaceAlertsKey = "lowSpaceAlerts"
     static let lowSpaceThresholdGBKey = "lowSpaceThresholdGB"

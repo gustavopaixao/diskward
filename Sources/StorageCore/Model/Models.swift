@@ -109,6 +109,8 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
     /// Order of tabs, and the order actions run in (lower first),
     /// e.g. containers are removed before the images they use.
     public var groupOrder: Int
+    /// Extra facts for cleanup rules (e.g. "app" for archives, "available" for simulators).
+    public var meta: [String: String]
 
     public init(
         id: String,
@@ -123,7 +125,8 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
         note: String? = nil,
         tab: String? = nil,
         usage: Usage? = nil,
-        groupOrder: Int = 0
+        groupOrder: Int = 0,
+        meta: [String: String] = [:]
     ) {
         self.id = id
         self.providerID = providerID
@@ -138,6 +141,7 @@ public struct CleanupItem: Identifiable, Sendable, Hashable {
         self.tab = tab
         self.usage = usage
         self.groupOrder = groupOrder
+        self.meta = meta
     }
 }
 

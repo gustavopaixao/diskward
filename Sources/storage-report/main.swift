@@ -38,3 +38,13 @@ for category in CleanupCategory.allCases {
     print("")
 }
 print("Total reclaimable: \(ByteFormat.string(grandTotal))   (! = caution, ? = review)")
+
+// What the default cleanup rules would select (the app uses your saved rules).
+let allItems = results.flatMap(\.2)
+print("\nDefault cleanup rules would select:")
+for rule in RuleEngine.defaultRules() {
+    let matched = RuleEngine.matches(rule, in: allItems)
+    guard !matched.isEmpty else { continue }
+    let mark = rule.enabled ? "on " : "off"
+    print("  [\(mark)] \(rule.title.padding(toLength: 52, withPad: " ", startingAt: 0)) \(matched.count) items  \(ByteFormat.string(matched.reduce(0) { $0 + $1.size }))")
+}

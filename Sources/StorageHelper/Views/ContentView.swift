@@ -5,6 +5,7 @@ import SwiftUI
 enum Route: Hashable {
     case overview
     case changes
+    case rules
     case explorer
     case provider(String)
 }
@@ -25,6 +26,7 @@ struct ContentView: View {
             switch route ?? .overview {
             case .overview: OverviewView(route: $route)
             case .changes: ChangesView(route: $route)
+            case .rules: RulesView()
             case .explorer: DiskExplorerView()
             case .provider(let id): ProviderDetailView(providerID: id)
             }
@@ -90,6 +92,7 @@ struct SidebarView: View {
             Section {
                 Label("Overview", systemImage: "chart.pie").tag(Route.overview)
                 Label("What Changed", systemImage: "chart.line.uptrend.xyaxis").tag(Route.changes)
+                Label("Cleanup Rules", systemImage: "checklist").tag(Route.rules)
                 Label("Disk Explorer", systemImage: "folder.badge.gearshape").tag(Route.explorer)
             }
             ForEach(CleanupCategory.allCases) { category in

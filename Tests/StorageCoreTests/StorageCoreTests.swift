@@ -474,3 +474,76 @@ func fixture(_ name: String) throws -> Data {
         #expect(policy.shouldAlert(free: 19 * gb, lastAlert: now.addingTimeInterval(-7 * 3600), lastAlertFree: 20 * gb, now: now))
     }
 }
+
+@Suite struct RuleTests {
+    let now = Date(timeIntervalSince1970: 10_000_000)
+    func days(_ n: Double) -> Date { now.addingTimeInterval(-n * 86_400) }
+
+    func item(_ id: String, _ provider: String, modified: Date? = nil, safety: SafetyLevel = .safe,
+              tab: String? = nil, usage: Usage? = nil, meta: [String: String] = [:], title: String? = nil,
+              action: CleanupAction = .trash([])) -> CleanupItem {
+        CleanupItem(id: id, providerID: provider, title: title ?? id, size: 100, lastModified: modified,
+                    safety: safety, action: action, tab: tab, usage: usage, meta: meta)
+    }
+
+    func ids(_ kind: RuleKind, value: Int? = nil, _ items: [CleanupItem]) -> Set<String> {
+        Set(RuleEngine.matches(CleanupRule(kind: kind, enabled: true, value: value), in: items, now: now).map(\.id))
+    }
+
+    @Test func derivedDataByAge() {
+        let items = [item("old", "derived-data", modified: days(20)), item("new", "derived-data", modified: days(2)),
+                     item("other", "caches", modified: days(100))]
+        #expect(ids(.derivedDataOlderThan, value: 14, items) == ["old"])
+    }
+
+    @Test func dockerRules() {
+        let items = [
+            item("stopped", "docker", tab: "Containers", usage: Usage(inUse: false, label: "Stopped")),
+            item("running", "docker", tab: "Containers", usage: Usage(inUse: true, label: "Running")),
+            item("dangling", "docker", tab: "Images", usage: .unused, title: "<untagged> abc"),
+            item("tagged", "docker", tab: "Images", usage: .unused, title: "node:20"),
+            item("cache", "docker", tab: "Build Cache"),
+        ]
+        #expect(ids(.stoppedDockerContainers, items) == ["stopped"])
+        #expect(ids(.danglingDockerImages, items) == ["dangling"])
+        #expect(ids(.dockerBuildCache, items) == ["cache"])
+    }
+
+    @Test func simulatorsOnlyUnavailableAndNotBooted() {
+        let items = [item("gone", "simulators", meta: ["available": "false", "booted": "false"]),
+                     item("ok", "simulators", meta: ["available": "true", "booted": "false"])]
+        #expect(ids(.unavailableSimulators, items) == ["gone"])
+    }
+
+    @Test func keepsNewestArchivesPerApp() {
+        let items = (1...5).map { item("a\($0)", "archives", modified: days(Double($0)), meta: ["app": "com.a"]) }
+            + [item("b1", "archives", modified: days(50), meta: ["app": "com.b"])]
+        #expect(ids(.keepLatestArchives, value: 2, items) == ["a3", "a4", "a5"])
+    }
+
+    @Test func cachesSkipCautionAndManualNeverMatches() {
+        let items = [item("c1", "caches", modified: days(60)), item("apple", "caches", modified: days(60), safety: .caution),
+                     item("manual", "logs", modified: days(60), action: .manual("do it"))]
+        #expect(ids(.cachesOlderThan, value: 30, items) == ["c1"])
+        #expect(ids(.logsOlderThan, value: 30, items).isEmpty)
+    }
+
+    @Test func applyDeduplicatesAndSkipsDisabled() {
+        let items = [item("x", "derived-data", modified: days(30))]
+        let rules = [CleanupRule(kind: .derivedDataOlderThan, enabled: true, value: 7),
+                     CleanupRule(kind: .derivedDataOlderThan, enabled: true, value: 14),
+                     CleanupRule(kind: .stoppedDockerContainers, enabled: false)]
+        #expect(RuleEngine.apply(rules, to: items, now: now).map(\.id) == ["x"])
+    }
+
+    @Test func mergedAddsMissingKindsAndKeepsStored() {
+        let merged = RuleEngine.merged([CleanupRule(kind: .keepLatestArchives, enabled: true, value: 7)])
+        #expect(merged.count == RuleKind.allCases.count)
+        #expect(merged.first { $0.kind == .keepLatestArchives }?.value == 7)
+    }
+
+    @Test func archiveAppNameFromDefaultName() {
+        #expect(ArchivesProvider.appName(fromArchiveName: "PalpitePRO 2026-09-23 19.32.53") == "PalpitePRO")
+        #expect(ArchivesProvider.appName(fromArchiveName: "Custom") == "Custom")
+    }
+}

@@ -58,6 +58,11 @@ struct MenuBarView: View {
 
             Button { open(route: .overview) } label: { Label("Open Storage Helper", systemImage: "macwindow") }
             Button { open(route: .changes) } label: { Label("What Changed", systemImage: "chart.line.uptrend.xyaxis") }
+            let matches = model.ruleMatches
+            Button { open(route: .rules) } label: {
+                Label("Apply My Rules (\(ByteFormat.string(matches.reduce(0) { $0 + $1.size })))", systemImage: "checklist")
+            }
+            .disabled(matches.isEmpty || model.isScanning)
             Button { model.scanAll() } label: { Label("Scan Now", systemImage: "arrow.clockwise") }
                 .disabled(model.isScanning)
             Divider()

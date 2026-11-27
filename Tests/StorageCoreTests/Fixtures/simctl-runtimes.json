@@ -1,0 +1,23 @@
+{
+  "1111-2222" : {
+    "build" : "21C62",
+    "deletable" : true,
+    "identifier" : "1111-2222",
+    "kind" : "Disk Image",
+    "lastUsedAt" : "2025-01-10T08:00:00.123Z",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-17-2",
+    "sizeBytes" : 7516192768,
+    "state" : "Ready",
+    "version" : "17.2"
+  },
+  "3333-4444" : {
+    "build" : "23A1",
+    "deletable" : false,
+    "identifier" : "3333-4444",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-26-0",
+    "sizeBytes" : 9000000000,
+    "state" : "Ready",
+    "version" : "26.0"
+  }
+}

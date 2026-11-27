@@ -1,0 +1,29 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-17-2" : [
+      {
+        "lastBootedAt" : "2025-03-01T10:00:00Z",
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/AAAA/data",
+        "dataPathSize" : 2147483648,
+        "logPath" : "/Users/me/Library/Logs/CoreSimulator/AAAA",
+        "udid" : "AAAA",
+        "isAvailable" : false,
+        "availabilityError" : "runtime profile not found",
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "state" : "Shutdown",
+        "name" : "iPhone 15"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-0" : [
+      {
+        "dataPath" : "/Users/me/Library/Developer/CoreSimulator/Devices/BBBB/data",
+        "dataPathSize" : 1048576,
+        "udid" : "BBBB",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Booted",
+        "name" : "iPhone 17"
+      }
+    ]
+  }
+}

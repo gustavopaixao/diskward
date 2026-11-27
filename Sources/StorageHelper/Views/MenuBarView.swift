@@ -70,6 +70,12 @@ struct MenuBarView: View {
                 .disabled(model.isScanning)
             Divider()
             HStack {
+                AppearancePicker(showsLabels: false)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+            }
+            HStack {
                 SettingsLink { Text("Settings…") }
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }

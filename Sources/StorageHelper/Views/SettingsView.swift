@@ -24,6 +24,10 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                AppearancePicker()
+                    .pickerStyle(.segmented)
+            }
             Section("Menu bar") {
                 Toggle("Show free space in the menu bar", isOn: $showMenuBar)
                 Text("When it's on, closing the window keeps Diskward running in the menu bar.")

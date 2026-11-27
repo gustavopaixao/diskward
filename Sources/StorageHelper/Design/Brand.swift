@@ -127,3 +127,67 @@ enum AboutPanel {
         NSApp.activate(ignoringOtherApps: true)
     }
 }
+
+/// Light / Dark / System appearance, saved in user defaults and applied app-wide.
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    static let key = "appearanceMode"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max"
+        case .dark: "moon"
+        }
+    }
+
+    @MainActor static var current: AppearanceMode {
+        AppearanceMode(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system
+    }
+
+    /// Saves and applies the mode to every window, including the menu bar panel and Settings.
+    @MainActor static func set(_ mode: AppearanceMode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: key)
+        mode.apply()
+    }
+
+    @MainActor func apply() {
+        switch self {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
+/// Segmented Light / Dark / System control bound to the saved appearance.
+struct AppearancePicker: View {
+    @AppStorage(AppearanceMode.key) private var raw = AppearanceMode.system.rawValue
+    var showsLabels = true
+
+    var body: some View {
+        Picker("Appearance", selection: Binding(
+            get: { AppearanceMode(rawValue: raw) ?? .system },
+            set: { AppearanceMode.set($0) }
+        )) {
+            ForEach(AppearanceMode.allCases) { mode in
+                if showsLabels {
+                    Label(mode.title, systemImage: mode.icon).tag(mode)
+                } else {
+                    Image(systemName: mode.icon).help(mode.title).tag(mode)
+                }
+            }
+        }
+    }
+}

@@ -4,24 +4,20 @@ import SwiftUI
 struct OverviewView: View {
     @Environment(AppModel.self) private var model
     @Binding var route: Route?
+    @State private var confirmItems: [CleanupItem]?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if !model.hasFullDiskAccess { FullDiskAccessBanner() }
 
-                HStack(spacing: 16) {
-                    StatCard(title: "Free space", value: model.disk.map { ByteFormat.string($0.available) } ?? "—",
-                             caption: model.disk.map { disk in
-                                 disk.purgeable > 0
-                                     ? "incl. \(ByteFormat.string(disk.purgeable)) purgeable · of \(ByteFormat.string(disk.total))"
-                                     : "of \(ByteFormat.string(disk.total))"
-                             } ?? "")
-                    StatCard(title: "Reclaimable found", value: ByteFormat.string(model.totalReclaimable),
-                             caption: model.isScanning ? "Scanning…" : model.lastScan.map { "Scanned \($0.relative)" } ?? "",
-                             valueColor: DS.reclaimable)
-                    StatCard(title: "Selected", value: ByteFormat.string(model.selectedSize),
-                             caption: "\(model.selection.count) items · safe items are pre-selected")
+                OverviewHero()
+
+                if let disk = model.disk, let other = model.unexplainedUsed {
+                    UsageBreakdown(disk: disk, reclaimable: model.totalReclaimable, other: other,
+                                   isScanning: model.isScanning) {
+                        route = .explorer
+                    }
                 }
 
                 let top = Array(model.allItems.sorted { $0.size > $1.size }.prefix(5))
@@ -35,35 +31,213 @@ struct OverviewView: View {
                     GrowthSummary(growth: growth) { route = .changes }
                 }
 
-                if let disk = model.disk, let other = model.unexplainedUsed, !model.isScanning {
-                    UsageBreakdown(disk: disk, reclaimable: model.totalReclaimable, other: other) {
-                        route = .explorer
-                    }
-                }
+                QuickWinsCard(
+                    review: { confirmItems = $0 },
+                    editRules: { route = .rules }
+                )
 
-                let maxTotal = model.visibleStates.map(\.total).max() ?? 0
-                ForEach(CleanupCategory.allCases) { category in
-                    let states = model.states(in: category)
-                    if !states.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(category.title).font(.title3.bold())
-                            VStack(spacing: 0) {
-                                ForEach(states) { state in
-                                    Button { route = .provider(state.id) } label: {
-                                        OverviewRow(state: state, maxTotal: maxTotal)
-                                    }
-                                    .buttonStyle(.plain)
-                                    if state.id != states.last?.id { Divider() }
-                                }
-                            }
-                            .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
-                        }
-                    }
-                }
+                CategorySummary { route = .provider($0) }
             }
             .padding(24)
         }
         .navigationTitle("Overview")
+        .sheet(item: Binding(
+            get: { confirmItems.map(ItemsWrapper.init) },
+            set: { if $0 == nil { confirmItems = nil } }
+        )) { wrapper in
+            CleanConfirmSheet(items: wrapper.items)
+        }
+    }
+}
+
+/// Brand hero: icon, tagline and the three headline numbers, on the brand surface.
+struct OverviewHero: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            HStack(spacing: 14) {
+                Image(nsImage: Brand.appIcon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 56, height: 56)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Brand.tagline).font(.title3.weight(.semibold))
+                    Text(statusLine).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 12)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 28) { stats }
+                HStack(spacing: 16) { stats }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 12).fill(DS.brandSurface))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
+    }
+
+    private var statusLine: String {
+        if model.isScanning { return "Scanning your Mac…" }
+        if let date = model.lastScan { return "Scanned \(date.relative)" }
+        return "Ready to scan"
+    }
+
+    @ViewBuilder private var stats: some View {
+        HeroStat(title: "Free",
+                 value: model.disk.map { ByteFormat.string($0.available) } ?? "—",
+                 caption: model.disk.map { disk in
+                     disk.purgeable > 0 ? "\(ByteFormat.string(disk.purgeable)) purgeable" : "of \(ByteFormat.string(disk.total))"
+                 } ?? "",
+                 color: model.disk.map { $0.available < 20_000_000_000 ? DS.critical : .primary } ?? .primary)
+        HeroStat(title: "Reclaimable", value: ByteFormat.string(model.totalReclaimable),
+                 caption: "found by the scan", color: DS.reclaimable)
+        HeroStat(title: "Selected", value: ByteFormat.string(model.selectedSize),
+                 caption: "\(model.selection.count) items", color: .primary)
+    }
+}
+
+struct HeroStat: View {
+    let title: String
+    let value: String
+    let caption: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(caption).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// What the enabled cleanup rules would clean right now, with one button to review it.
+struct QuickWinsCard: View {
+    @Environment(AppModel.self) private var model
+    let review: ([CleanupItem]) -> Void
+    let editRules: () -> Void
+
+    var body: some View {
+        let matches = model.ruleMatches
+        let total = matches.reduce(Int64(0)) { $0 + $1.size }
+        let perRule = model.rules.filter(\.enabled)
+            .map { ($0, RuleEngine.matches($0, in: model.allItems)) }
+            .filter { !$0.1.isEmpty }
+            .sorted { $0.1.reduce(0) { $0 + $1.size } > $1.1.reduce(0) { $0 + $1.size } }
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Quick wins").font(.title3.bold())
+                Spacer()
+                Button("Edit Rules…", action: editRules).buttonStyle(.link)
+            }
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: "checklist")
+                    .font(.title2)
+                    .foregroundStyle(DS.tint)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 4) {
+                    if matches.isEmpty {
+                        Text(model.isScanning ? "Checking your rules…" : "Nothing matches your rules right now.")
+                            .font(.headline)
+                        Text("Turn on more rules to find easy space to free.").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 4) {
+                            Text("Your rules can free")
+                            Text(ByteFormat.string(total)).foregroundStyle(DS.reclaimableText).monospacedDigit()
+                            Text("· \(matches.count) items").foregroundStyle(.secondary)
+                        }
+                        .font(.headline)
+                        Text(perRule.prefix(3).map { "\($0.0.title) \(ByteFormat.string($0.1.reduce(0) { $0 + $1.size }))" }
+                            .joined(separator: " · "))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Button("Review & Clean") { review(matches) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(matches.isEmpty || model.isScanning || model.isCleaning)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+        }
+    }
+}
+
+/// One compact row per category instead of every source (the sidebar lists those).
+struct CategorySummary: View {
+    @Environment(AppModel.self) private var model
+    /// Opens the largest source of the clicked category.
+    let open: (String) -> Void
+
+    static func icon(_ category: CleanupCategory) -> String {
+        switch category {
+        case .system: "desktopcomputer"
+        case .xcode: "hammer"
+        case .containers: "shippingbox"
+        case .packageManagers: "cube.box"
+        case .devTools: "wrench.and.screwdriver"
+        case .projects: "folder"
+        }
+    }
+
+    var body: some View {
+        let rows = CleanupCategory.allCases.compactMap { category -> (CleanupCategory, [ProviderState])? in
+            let states = model.states(in: category)
+            return states.isEmpty ? nil : (category, states)
+        }
+        let maxTotal = rows.map { $0.1.reduce(Int64(0)) { $0 + $1.total } }.max() ?? 0
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("By category").font(.title3.bold())
+            VStack(spacing: 0) {
+                ForEach(rows, id: \.0) { category, states in
+                    let total = states.reduce(Int64(0)) { $0 + $1.total }
+                    let scanning = states.contains { $0.status == .scanning || $0.status == .idle }
+                    let largest = states.max { $0.total < $1.total }
+                    Button { if let largest { open(largest.id) } } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: Self.icon(category)).foregroundStyle(.secondary).frame(width: 22)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(category.title).font(.body.weight(.medium))
+                                    Text("\(states.count) sources").font(.caption).foregroundStyle(.secondary)
+                                    Spacer()
+                                    if scanning { ProgressView().controlSize(.small) }
+                                    Text(ByteFormat.string(total))
+                                        .monospacedDigit()
+                                        .foregroundStyle(total > 0 ? .primary : .secondary)
+                                }
+                                SizeBar(value: total, maxValue: maxTotal)
+                            }
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(largest.map { "Open \($0.provider.title), the largest source in \(category.title)" } ?? "")
+                    if category != rows.last?.0 { Divider() }
+                }
+            }
+            .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+        }
     }
 }
 
@@ -86,85 +260,43 @@ struct StatCard: View {
     }
 }
 
-struct OverviewRow: View {
-    @Environment(AppModel.self) private var model
-    let state: ProviderState
-    let maxTotal: Int64
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: state.provider.icon)
-                .frame(width: 22)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(state.provider.title).font(.body.weight(.medium))
-                    Spacer()
-                    statusText
-                }
-                if state.status == .done, state.total > 0 {
-                    SizeBar(value: state.total, maxValue: maxTotal)
-                }
-            }
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder private var statusText: some View {
-        switch state.status {
-        case .idle, .scanning:
-            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Scanning…").foregroundStyle(.secondary) }
-        case .done:
-            let selected = state.items.filter { model.selection.contains($0.id) }.reduce(Int64(0)) { $0 + $1.size }
-            HStack(spacing: 8) {
-                if selected > 0 {
-                    Text("\(ByteFormat.string(selected)) selected").font(.caption).foregroundStyle(.secondary)
-                }
-                Text(state.total > 0 ? ByteFormat.string(state.total) : "Nothing to clean")
-                    .monospacedDigit()
-                    .foregroundStyle(state.total > 0 ? .primary : .secondary)
-            }
-        case .unavailable(let reason), .failed(let reason):
-            Text(reason).font(.caption).foregroundStyle(DS.review).lineLimit(1)
-        case .hidden:
-            EmptyView()
-        }
-    }
-}
-
-/// One bar: reclaimable (found by the scan) · other used space · free.
+/// One bar: other used space · reclaimable (found by the scan) · free.
 struct UsageBreakdown: View {
     let disk: DiskInfo
     let reclaimable: Int64
     let other: Int64
+    var isScanning = false
     let explore: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Where your disk space is").font(.title3.bold())
+            HStack {
+                Text("Where your disk space is").font(.title3.bold())
+                if isScanning {
+                    ProgressView().controlSize(.small)
+                    Text("updating…").font(.caption).foregroundStyle(.secondary)
+                }
+            }
             GeometryReader { geo in
                 let total = max(Double(disk.total), 1)
                 HStack(spacing: 2) {
-                    segment(DS.reclaimable, width: geo.size.width * Double(min(reclaimable, disk.used)) / total)
                     segment(DS.otherUsed, width: geo.size.width * Double(other) / total)
+                    segment(DS.reclaimable, width: geo.size.width * Double(min(reclaimable, disk.used)) / total)
                     segment(Color.secondary.opacity(0.2), width: geo.size.width * Double(disk.available) / total)
                 }
             }
             .frame(height: 14)
 
             HStack(spacing: 18) {
+                legend(DS.otherUsed, "Other space", other)
                 legend(DS.reclaimable, "Reclaimable", reclaimable)
-                legend(DS.otherUsed, "Other used space", other)
                 legend(Color.secondary.opacity(0.2), "Free", disk.available)
                 Spacer()
                 Button("Find it in Disk Explorer", action: explore)
             }
             .font(.caption)
 
-            Text("\"Other used space\" is everything this scan doesn't list: apps, documents, photos and macOS itself. Use the Disk Explorer to see which folders hold it.")
+            Text("\"Other space\" is everything this scan doesn't list: apps, documents, photos and macOS itself. Use the Disk Explorer to see which folders hold it.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

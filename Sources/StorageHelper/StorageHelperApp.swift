@@ -8,6 +8,8 @@ struct StorageHelperApp: App {
     @State private var model = AppModel()
     @State private var explorer = ExplorerModel()
     @AppStorage(AppSettings.showMenuBarKey) private var showMenuBar = true
+    /// Observed so the View › Appearance checkmark updates when the mode changes anywhere.
+    @AppStorage(AppearanceMode.key) private var appearanceRaw = AppearanceMode.system.rawValue
 
     var body: some Scene {
         WindowGroup(Brand.name, id: "main") {
@@ -21,6 +23,20 @@ struct StorageHelperApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About \(Brand.name)") { AboutPanel.show() }
+            }
+            CommandGroup(after: .sidebar) {
+                Divider()
+                Menu("Appearance") {
+                    ForEach(Array(AppearanceMode.allCases.enumerated()), id: \.element) { index, mode in
+                        Button {
+                            AppearanceMode.set(mode)
+                        } label: {
+                            // Checkmark on the active mode, like other macOS menus.
+                            if appearanceRaw == mode.rawValue { Label(mode.title, systemImage: "checkmark") } else { Text(mode.title) }
+                        }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command, .option])
+                    }
+                }
             }
             CommandGroup(after: .newItem) {
                 Button("Scan Again") { model.scanAll() }
@@ -47,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         MainActor.assumeIsolated {
+            AppearanceMode.current.apply()
             if LowSpaceNotifier.isSupported { UNUserNotificationCenter.current().delegate = self }
         }
     }

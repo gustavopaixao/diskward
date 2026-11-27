@@ -116,19 +116,16 @@ struct SidebarView: View {
                 Label("Cleanup Rules", systemImage: "checklist").tag(Route.rules)
                 Label("Disk Explorer", systemImage: "folder.badge.gearshape").tag(Route.explorer)
             }
+            .collapsible(false)
             ForEach(CleanupCategory.allCases) { category in
                 let states = model.states(in: category)
                 if !states.isEmpty {
                     let expanded = isExpanded(category)
-                    // A plain Section with our own chevron: the system one only appears on hover.
+                    // The category title is a regular (non-selectable) row, not a Section header:
+                    // macOS adds its own hover chevron on the right to any sidebar section header.
                     Section {
-                        if expanded.wrappedValue {
-                            ForEach(states) { state in
-                                SidebarRow(state: state).tag(Route.provider(state.id))
-                            }
-                        }
-                    } header: {
                         SidebarSectionHeader(title: category.title, states: states, isExpanded: expanded)
+                            .padding(.top, 4)
                             .contextMenu {
                                 Button("Collapse All") { setCollapsed(Set(CleanupCategory.allCases.map(\.id))) }
                                 Button("Expand All") { setCollapsed([]) }
@@ -137,15 +134,33 @@ struct SidebarView: View {
                                     setCollapsed(Set(CleanupCategory.allCases.map(\.id)).subtracting([category.id]))
                                 }
                             }
+                        if expanded.wrappedValue {
+                            ForEach(states) { state in
+                                SidebarRow(state: state).tag(Route.provider(state.id))
+                            }
+                        }
                     }
+                    .collapsible(false)
                 }
             }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .top) {
-            DiskGauge(disk: model.disk)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(nsImage: Brand.appIcon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 26, height: 26)
+                        .accessibilityHidden(true)
+                    Text(Brand.name).font(.headline)
+                    Spacer()
+                }
+                .help(Brand.tagline)
+                DiskGauge(disk: model.disk)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 12) {
@@ -195,6 +210,7 @@ struct SidebarSectionHeader: View {
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 12)
                 Text(title)
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.75))
                 Spacer()
                 if states.contains(where: { $0.status == .scanning || $0.status == .idle }) {

@@ -28,7 +28,7 @@ struct ProviderDetailView: View {
                 CleanConfirmSheet(items: wrapper.items)
             }
         } else {
-            ContentUnavailableView("Not found", systemImage: "questionmark.folder")
+            EmptyStateView(icon: "questionmark.folder", title: "Not found")
         }
     }
 
@@ -49,15 +49,19 @@ struct ProviderDetailView: View {
                 Text("\(visible.count) items · \(ByteFormat.string(visible.reduce(0) { $0 + $1.size }))")
                     .font(.headline.monospacedDigit())
                 Spacer()
-                Button("Select All") { model.setSelected(true, items: visible) }
-                Button("Select None") { model.setSelected(false, items: visible) }
+                if !visible.isEmpty {
+                    Button("Select All") { model.setSelected(true, items: visible) }
+                    Button("Select None") { model.setSelected(false, items: visible) }
+                }
                 Button { model.rescan(providerID: providerID) } label: { Image(systemName: "arrow.clockwise") }
                     .help("Rescan \(state.provider.title)")
-                Button("Clean \(ByteFormat.string(selected.reduce(0) { $0 + $1.size }))") {
-                    confirmItems = selected
+                if !state.items.isEmpty {
+                    Button("Clean \(ByteFormat.string(selected.reduce(0) { $0 + $1.size }))") {
+                        confirmItems = selected
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selected.isEmpty || model.isCleaning)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(selected.isEmpty || model.isCleaning)
             }
             .disabled(state.status == .scanning)
         }
@@ -69,24 +73,27 @@ struct ProviderDetailView: View {
         case .idle, .scanning:
             ProgressView("Scanning \(state.provider.title)…").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .unavailable(let reason):
-            ContentUnavailableView(reason, systemImage: "exclamationmark.triangle")
+            EmptyStateView(icon: "exclamationmark.triangle", title: "Can't scan right now", message: reason, tint: DS.review) {
+                Button("Try Again") { model.rescan(providerID: providerID) }
+            }
         case .failed(let error):
-            ContentUnavailableView {
-                Label("Scan failed", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(error)
-            } actions: {
+            EmptyStateView(icon: "xmark.octagon", title: "Scan failed", message: error, tint: DS.critical) {
                 Button("Try Again") { model.rescan(providerID: providerID) }
             }
         case .hidden:
-            ContentUnavailableView("Not installed", systemImage: "nosign")
+            EmptyStateView(icon: "nosign", title: "Not installed",
+                           message: "\(state.provider.title) wasn't found on this Mac.")
         case .done where state.items.isEmpty:
-            ContentUnavailableView("Nothing to clean", systemImage: "checkmark.circle")
+            EmptyStateView(icon: "checkmark.circle", title: "Nothing to clean",
+                           message: "\(state.provider.title) isn't using any space worth cleaning.",
+                           tint: DS.reclaimable)
         case .done:
             VStack(spacing: 0) {
                 filterBar(state)
                 if visibleItems(state).isEmpty {
-                    ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
+                    EmptyStateView(icon: "checkmark.circle", title: "Nothing here",
+                                   message: "No items in this view. Try the other tab or switch.",
+                                   tint: DS.reclaimable)
                 } else {
                     itemTable(state)
                 }

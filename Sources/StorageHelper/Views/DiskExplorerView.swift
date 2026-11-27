@@ -16,7 +16,8 @@ struct DiskExplorerView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if explorer.children.isEmpty {
-                ContentUnavailableView("Empty or unreadable folder", systemImage: "folder")
+                EmptyStateView(icon: "folder", title: "Empty or unreadable folder",
+                               message: "This folder is empty, or macOS didn't allow reading it. Full Disk Access helps with protected folders.")
             } else {
                 list
             }

@@ -108,3 +108,45 @@ extension Date {
         RelativeDateTimeFormatter().localizedString(for: self, relativeTo: Date())
     }
 }
+
+/// Large empty/status state, centered horizontally and vertically in all available space.
+struct EmptyStateView<Actions: View>: View {
+    let icon: String
+    let title: String
+    var message: String? = nil
+    var tint: Color = .secondary
+    @ViewBuilder var actions: () -> Actions
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 64, weight: .light))
+                .foregroundStyle(tint)
+                .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.title.weight(.semibold))
+                .multilineTextAlignment(.center)
+            if let message {
+                Text(message)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 460)
+                    .lineLimit(4)
+            }
+            actions()
+                .controlSize(.large)
+                .padding(.top, 6)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity) // centers in both directions
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension EmptyStateView where Actions == EmptyView {
+    init(icon: String, title: String, message: String? = nil, tint: Color = .secondary) {
+        self.init(icon: icon, title: title, message: message, tint: tint) { EmptyView() }
+    }
+}

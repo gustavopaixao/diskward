@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "Diskward-MenuBar-Template.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "Diskward-MenuBar-Template@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "Diskward-MenuBar-Template@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

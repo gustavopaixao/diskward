@@ -1,0 +1,26 @@
+name: New cleanup source
+description: A tool or folder Diskward should find and clean (a cache, SDK, IDE…)
+labels: [cleanup-source]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: Tool
+      placeholder: e.g. Flutter, Rust/cargo, Unity, Bazel
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: Where does it store data?
+      description: Paths, and how big they usually get.
+      placeholder: ~/.cargo/registry (often 5–20 GB)
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Is it safe to delete?
+      description: Is it re-created automatically? Does the tool have its own clean command (e.g. `cargo cache --autoclean`)? Anything that must never be deleted?
+    validations:
+      required: true

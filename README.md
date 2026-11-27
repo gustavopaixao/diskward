@@ -1,8 +1,33 @@
-# Diskward
+<p align="center">
+  <img src="materials/Diskward-AppIcon-1024.png" width="128" height="128" alt="Diskward app icon">
+</p>
 
-*Your disk, under control.*
+<h1 align="center">Diskward</h1>
 
-A native macOS app that scans your Mac for space you can safely reclaim and cleans it up.
+<p align="center"><em>Your disk, under control.</em></p>
+
+<p align="center">
+  <a href="https://github.com/gustavopaixao/diskward/actions/workflows/ci.yml"><img src="https://github.com/gustavopaixao/diskward/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/gustavopaixao/diskward/releases/latest"><img src="https://img.shields.io/github/v/release/gustavopaixao/diskward?include_prereleases&label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-0F2D4A" alt="macOS 14+">
+  <img src="https://img.shields.io/badge/Swift-6-0B6E7A" alt="Swift 6">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-34D399" alt="MIT license"></a>
+</p>
+
+A native macOS app for developers whose Mac keeps running out of space. Open it, and it shows what's using your disk (Xcode, Docker, package managers, Android, AI models and more) and cleans it safely: files go to the Trash, and you review everything before it's deleted.
+
+## Install
+
+1. Download `Diskward-<version>.zip` from the [latest release](https://github.com/gustavopaixao/diskward/releases/latest), unzip it, and move **Diskward.app** to Applications.
+2. Diskward isn't notarized by Apple yet, so macOS blocks it on first launch. Right-click the app and choose **Open**, or run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Diskward.app
+   ```
+3. Grant **Full Disk Access** when the app asks (see [below](#full-disk-access)).
+
+To build it yourself instead, see [Run it](#run-it).
+
+## What it finds
 
 | Area | What it finds |
 |---|---|
@@ -117,3 +142,11 @@ swift test
 - **Sizes** are bytes actually allocated on disk. APFS clones are counted in full, so a few totals can be slightly higher than what is freed.
 - **Docker Desktop** stores everything in one disk image. Pruning frees space inside it right away, but macOS sees the image shrink later.
 - **pnpm:** projects hard-link into the pnpm store, so `pnpm store prune` frees less than the store's total size.
+
+## Contributing
+
+Bug reports, ideas for new cleanup sources and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a bug that could delete the wrong files, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+## License
+
+[MIT](LICENSE) © 2026 Gustavo Paixao

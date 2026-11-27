@@ -1,0 +1,61 @@
+name: Release
+
+# Push a tag like v0.1.0 to publish a GitHub Release with Diskward.app attached.
+# Run it manually (Actions › Release › Run workflow) to build the app without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app
+
+      - name: Test
+        run: swift test
+
+      - name: Set version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}"; fi
+          plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
+          plutil -replace CFBundleVersion -string "$GITHUB_RUN_NUMBER" Resources/Info.plist
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build Diskward.app
+        run: scripts/build-app.sh
+
+      - name: Package
+        run: |
+          ZIP="Diskward-${{ steps.version.outputs.version }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent build/Diskward.app "$ZIP"
+          shasum -a 256 "$ZIP" > "$ZIP.sha256"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Diskward-${{ steps.version.outputs.version }}
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.ZIP }}.sha256
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" \
+            --title "Diskward $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Diskward is not notarized yet. On first launch, right-click the app and choose Open, or run: xattr -dr com.apple.quarantine /Applications/Diskward.app"

@@ -1,0 +1,46 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! If the bug could make Diskward delete files it shouldn't, please **don't** open a public issue: follow [SECURITY.md](../blob/main/SECURITY.md) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Diskward
+        2. Go to …
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: Diskward version
+      description: Diskward › About Diskward
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 27.2
+    validations:
+      required: true
+  - type: dropdown
+    id: fda
+    attributes:
+      label: Full Disk Access granted?
+      options: ["Yes", "No", "Not sure"]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: From ~/Library/Logs/StorageHelper/cleanup.log, if the problem is about cleaning. Remove anything private.
+      render: text

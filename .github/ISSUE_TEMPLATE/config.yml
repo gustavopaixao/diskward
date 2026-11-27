@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security issue (e.g. Diskward deleting the wrong files)
+    url: https://github.com/gustavopaixao/diskward/security/advisories/new
+    about: Please report privately so it can be fixed before it's public.

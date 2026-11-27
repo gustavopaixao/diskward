@@ -86,6 +86,27 @@ struct ReportWrapper: Identifiable {
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
     @Binding var route: Route?
+    /// Comma-separated IDs of collapsed categories, remembered between launches.
+    @AppStorage("collapsedSidebarSections") private var collapsedRaw = ""
+
+    private var collapsed: Set<String> {
+        Set(collapsedRaw.split(separator: ",").map(String.init))
+    }
+
+    private func setCollapsed(_ ids: Set<String>) {
+        collapsedRaw = ids.sorted().joined(separator: ",")
+    }
+
+    private func isExpanded(_ category: CleanupCategory) -> Binding<Bool> {
+        Binding(
+            get: { !collapsed.contains(category.id) },
+            set: { expanded in
+                var ids = collapsed
+                if expanded { ids.remove(category.id) } else { ids.insert(category.id) }
+                setCollapsed(ids)
+            }
+        )
+    }
 
     var body: some View {
         List(selection: $route) {
@@ -98,10 +119,24 @@ struct SidebarView: View {
             ForEach(CleanupCategory.allCases) { category in
                 let states = model.states(in: category)
                 if !states.isEmpty {
-                    Section(category.title) {
-                        ForEach(states) { state in
-                            SidebarRow(state: state).tag(Route.provider(state.id))
+                    let expanded = isExpanded(category)
+                    // A plain Section with our own chevron: the system one only appears on hover.
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(states) { state in
+                                SidebarRow(state: state).tag(Route.provider(state.id))
+                            }
                         }
+                    } header: {
+                        SidebarSectionHeader(title: category.title, states: states, isExpanded: expanded)
+                            .contextMenu {
+                                Button("Collapse All") { setCollapsed(Set(CleanupCategory.allCases.map(\.id))) }
+                                Button("Expand All") { setCollapsed([]) }
+                                Divider()
+                                Button("Collapse Others") {
+                                    setCollapsed(Set(CleanupCategory.allCases.map(\.id)).subtracting([category.id]))
+                                }
+                            }
                     }
                 }
             }
@@ -112,6 +147,72 @@ struct SidebarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
         }
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 12) {
+                Button { setCollapsed(Set(CleanupCategory.allCases.map(\.id))) } label: {
+                    Image(systemName: "rectangle.compress.vertical")
+                }
+                .help("Collapse all sections")
+                Button { setCollapsed([]) } label: {
+                    Image(systemName: "rectangle.expand.vertical")
+                }
+                .help("Expand all sections")
+                Spacer()
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
+        // Opening a source from elsewhere (Overview, What Changed) expands its section so it's visible.
+        .onChange(of: route) { _, newRoute in
+            guard case .provider(let id) = newRoute,
+                  let category = model.state(for: id)?.provider.category,
+                  collapsed.contains(category.id)
+            else { return }
+            var ids = collapsed
+            ids.remove(category.id)
+            setCollapsed(ids)
+        }
+    }
+}
+
+/// Section title with an always-visible chevron, plus its total so collapsed
+/// sections still show how big they are. Clicking anywhere on it toggles the section.
+struct SidebarSectionHeader: View {
+    let title: String
+    let states: [ProviderState]
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.primary.opacity(0.75))
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(width: 12)
+                Text(title)
+                    .foregroundStyle(.primary.opacity(0.75))
+                Spacer()
+                if states.contains(where: { $0.status == .scanning || $0.status == .idle }) {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    let total = states.reduce(Int64(0)) { $0 + $1.total }
+                    if total > 0 {
+                        Text(ByteFormat.string(total))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Collapse \(title)" : "Expand \(title)")
+        .accessibilityLabel("\(title), \(isExpanded ? "expanded" : "collapsed")")
     }
 }
 

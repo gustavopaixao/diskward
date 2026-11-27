@@ -47,14 +47,13 @@ jobs:
         if: matrix.language == 'swift'
         run: sudo xcode-select -s /Applications/Xcode_27.2.app
 
-      # CodeQL's Swift tracer runs SwiftPM's manifest step as x86_64; the arm64 runner
-      # image has no Rosetta, which fails with "Bad CPU type in executable (86)".
-      - name: Install Rosetta
+      # CodeQL's Swift bundle is x86_64 and its tracer makes launched processes prefer x86_64.
+      # SwiftPM's manifest runner (via sandbox-exec) is arm64-only and then fails with
+      # "Bad CPU type in executable (86)". Evaluate Package.swift once *before* tracing starts
+      # so the traced build uses SwiftPM's cached manifest instead of launching it.
+      - name: Resolve package (before tracing)
         if: matrix.language == 'swift'
-        run: |
-          if ! /usr/bin/pgrep -q oahd; then
-            sudo softwareupdate --install-rosetta --agree-to-license
-          fi
+        run: swift package describe > /dev/null
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -65,7 +64,7 @@ jobs:
 
       - name: Build (traced by CodeQL)
         if: matrix.build-mode == 'manual'
-        run: swift build --build-tests
+        run: swift build --build-tests --disable-sandbox
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4

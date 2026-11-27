@@ -1,8 +1,18 @@
 name: CodeQL
 
-# Advanced CodeQL setup (replaces GitHub's default setup, which built Swift on an
-# older Xcode). Swift is analyzed on the same Xcode 27 image as CI.
+# Advanced CodeQL setup (replaces GitHub's default setup).
+#
+# CodeQL can't trace builds on macOS 27 / Xcode 27 and doesn't support Swift 6.4
+# (https://github.blog/changelog/2026-10-19-codeql-changes-for-macos-27-xcode-27-and-swift-6-4/),
+# so Swift is analyzed on macOS 26 with Xcode 26. CI still builds and tests with Xcode 27.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Package.swift"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
     paths:
@@ -35,7 +45,7 @@ jobs:
       matrix:
         include:
           - language: swift
-            runner: xcode-27
+            runner: macos-26
             build-mode: manual
           - language: actions
             runner: ubuntu-latest
@@ -43,14 +53,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Select Xcode 27.2
+      - name: Select Xcode 26.6 (latest version CodeQL can trace)
         if: matrix.language == 'swift'
-        run: sudo xcode-select -s /Applications/Xcode_27.2.app
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          swift --version
 
-      # CodeQL's Swift bundle is x86_64 and its tracer makes launched processes prefer x86_64.
-      # SwiftPM's manifest runner (via sandbox-exec) is arm64-only and then fails with
-      # "Bad CPU type in executable (86)". Evaluate Package.swift once *before* tracing starts
-      # so the traced build uses SwiftPM's cached manifest instead of launching it.
+      # Evaluate Package.swift once before tracing starts, so the traced build reuses SwiftPM's
+      # cached manifest instead of launching the manifest runner under CodeQL's x86_64 tracer.
       - name: Resolve package (before tracing)
         if: matrix.language == 'swift'
         run: swift package describe > /dev/null
@@ -70,3 +80,25 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+          output: sarif-results
+
+      # Fail instead of silently "passing" with an empty database (which is what happened
+      # when tracing wasn't supported): require at least one extracted Swift file.
+      - name: Verify Swift extraction
+        if: matrix.language == 'swift'
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys
+          files = set()
+          for path in glob.glob("sarif-results/*.sarif"):
+              run = json.load(open(path))["runs"][0]
+              for inv in run.get("invocations", []):
+                  for note in inv.get("toolExecutionNotifications", []):
+                      if note.get("descriptor", {}).get("id", "").endswith("successfully-extracted-files"):
+                          for loc in note.get("locations", []):
+                              files.add(loc["physicalLocation"]["artifactLocation"]["uri"])
+          print(f"CodeQL extracted {len(files)} Swift files")
+          for f in sorted(files)[:5]:
+              print("  ", f)
+          sys.exit(0 if files else "No Swift files were extracted; the analysis would be meaningless.")
+          PY

@@ -172,6 +172,7 @@ struct ProviderDetailView: View {
                     set: { model.setSelected($0, items: [item]) }
                 ))
                 .labelsHidden()
+                .disabled(!item.action.isActionable)
             }
             .width(24)
 
@@ -254,6 +255,18 @@ struct ActionCell: View {
                     .help("Copy command")
                 Button { TerminalLauncher.run([command]) } label: { Image(systemName: "terminal") }
                     .help("Open in Terminal")
+            } else if case .manual(let instructions) = item.action {
+                Image(systemName: "hand.point.right").foregroundStyle(.secondary)
+                Text(instructions)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .help(instructions)
+                Spacer(minLength: 4)
+                if let url = item.url {
+                    Button { Reveal.inFinder(url) } label: { Image(systemName: "folder") }
+                        .help("Reveal in Finder")
+                }
             } else {
                 Text(item.action.summary)
                     .font(.caption)

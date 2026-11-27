@@ -63,20 +63,29 @@ public enum CleanupAction: Sendable, Hashable {
     case command(ShellCommand)
     /// Permanently delete the contents of this Trash folder.
     case emptyTrash(URL)
+    /// Shown for information only: the app can't (or shouldn't) delete it. The text says how to do it by hand.
+    case manual(String)
 
     public var summary: String {
         switch self {
         case .trash(let urls): urls.count == 1 ? "Move to Trash" : "Move \(urls.count) items to Trash"
         case .command(let cmd): "Run: \(cmd.display)"
         case .emptyTrash: "Permanently delete Trash contents"
+        case .manual(let instructions): instructions
         }
     }
 
     public var isPermanent: Bool {
         switch self {
-        case .trash: false
+        case .trash, .manual: false
         case .command, .emptyTrash: true
         }
+    }
+
+    /// False for `.manual` items: they can't be selected or cleaned by the app.
+    public var isActionable: Bool {
+        if case .manual = self { return false }
+        return true
     }
 }
 

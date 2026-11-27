@@ -9,6 +9,9 @@ public enum ProviderRegistry {
             LogsProvider(home: home),
             TrashProvider(home: home),
             DownloadsProvider(home: home),
+            DeviceBackupsProvider(home: home),
+            TimeMachineSnapshotsProvider(),
+            MailMessagesProvider(home: home),
             // Xcode
             DerivedDataProvider(home: home),
             ArchivesProvider(home: home),

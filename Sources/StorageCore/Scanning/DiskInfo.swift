@@ -1,19 +1,30 @@
 import Foundation
 
-public struct DiskInfo: Sendable, Equatable {
+public struct DiskInfo: Sendable, Equatable, Codable {
     public let total: Int64
     /// Matches the "available" number Finder shows (includes purgeable space).
     public let available: Int64
+    /// Space macOS can free on its own when needed (local snapshots, iCloud-optimized files, some caches).
+    public var purgeable: Int64 = 0
     public var used: Int64 { total - available }
     public var usedFraction: Double { total > 0 ? Double(used) / Double(total) : 0 }
 
+    public init(total: Int64, available: Int64, purgeable: Int64 = 0) {
+        self.total = total
+        self.available = available
+        self.purgeable = purgeable
+    }
+
     public static func current(for url: URL = Paths.home) -> DiskInfo? {
-        let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]
+        let keys: Set<URLResourceKey> = [
+            .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
+        ]
         guard let values = try? url.resourceValues(forKeys: keys),
               let total = values.volumeTotalCapacity,
               let available = values.volumeAvailableCapacityForImportantUsage
         else { return nil }
-        return DiskInfo(total: Int64(total), available: available)
+        let strictlyFree = Int64(values.volumeAvailableCapacity ?? Int(available))
+        return DiskInfo(total: Int64(total), available: available, purgeable: max(0, available - strictlyFree))
     }
 }
 

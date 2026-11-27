@@ -113,6 +113,9 @@ public struct Cleaner: Sendable {
             case .emptyTrash(let trash):
                 try emptyTrash(trash)
                 return (nil, nil)
+
+            case .manual(let instructions):
+                return ("Storage Helper doesn't clean this automatically. \(instructions)", nil)
             }
         } catch {
             return (error.localizedDescription, nil)
@@ -152,6 +155,7 @@ public struct CleanupLog: Sendable {
         case .trash(let urls): target = urls.map(\.path).joined(separator: ", ")
         case .command(let cmd): target = cmd.display
         case .emptyTrash(let url): target = url.path
+        case .manual: target = item.url?.path ?? item.title
         }
         record(message: "[\(item.providerID)] \(item.title) | \(ByteFormat.string(item.size)) | \(item.action.summary) | \(target) | \(status)")
     }

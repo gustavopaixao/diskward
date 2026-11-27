@@ -12,11 +12,21 @@ struct OverviewView: View {
 
                 HStack(spacing: 16) {
                     StatCard(title: "Free space", value: model.disk.map { ByteFormat.string($0.available) } ?? "—",
-                             caption: model.disk.map { "of \(ByteFormat.string($0.total))" } ?? "")
+                             caption: model.disk.map { disk in
+                                 disk.purgeable > 0
+                                     ? "incl. \(ByteFormat.string(disk.purgeable)) purgeable · of \(ByteFormat.string(disk.total))"
+                                     : "of \(ByteFormat.string(disk.total))"
+                             } ?? "")
                     StatCard(title: "Reclaimable found", value: ByteFormat.string(model.totalReclaimable),
                              caption: model.isScanning ? "Scanning…" : model.lastScan.map { "Scanned \($0.relative)" } ?? "")
                     StatCard(title: "Selected", value: ByteFormat.string(model.selectedSize),
                              caption: "\(model.selection.count) items · safe items are pre-selected")
+                }
+
+                if let disk = model.disk, let other = model.unexplainedUsed, !model.isScanning {
+                    UsageBreakdown(disk: disk, reclaimable: model.totalReclaimable, other: other) {
+                        route = .explorer
+                    }
                 }
 
                 let maxTotal = model.visibleStates.map(\.total).max() ?? 0
@@ -107,6 +117,56 @@ struct OverviewRow: View {
             Text(reason).font(.caption).foregroundStyle(.orange).lineLimit(1)
         case .hidden:
             EmptyView()
+        }
+    }
+}
+
+/// One bar: reclaimable (found by the scan) · other used space · free.
+struct UsageBreakdown: View {
+    let disk: DiskInfo
+    let reclaimable: Int64
+    let other: Int64
+    let explore: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Where your disk space is").font(.title3.bold())
+            GeometryReader { geo in
+                let total = max(Double(disk.total), 1)
+                HStack(spacing: 2) {
+                    segment(.orange, width: geo.size.width * Double(min(reclaimable, disk.used)) / total)
+                    segment(.gray, width: geo.size.width * Double(other) / total)
+                    segment(.green.opacity(0.5), width: geo.size.width * Double(disk.available) / total)
+                }
+            }
+            .frame(height: 14)
+
+            HStack(spacing: 18) {
+                legend(.orange, "Reclaimable", reclaimable)
+                legend(.gray, "Other used space", other)
+                legend(.green.opacity(0.5), "Free", disk.available)
+                Spacer()
+                Button("Find it in Disk Explorer", action: explore)
+            }
+            .font(.caption)
+
+            Text("\"Other used space\" is everything this scan doesn't list: apps, documents, photos and macOS itself. Use the Disk Explorer to see which folders hold it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+    }
+
+    private func segment(_ color: Color, width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 3).fill(color).frame(width: max(0, width))
+    }
+
+    private func legend(_ color: Color, _ title: String, _ value: Int64) -> some View {
+        HStack(spacing: 5) {
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 10, height: 10)
+            Text("\(title) \(ByteFormat.string(value))").monospacedDigit()
         }
     }
 }

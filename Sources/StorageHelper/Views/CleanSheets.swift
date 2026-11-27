@@ -90,6 +90,8 @@ struct CleanConfirmSheet: View {
             "$ \(command.shellLine)"
         case .emptyTrash:
             "Permanently delete everything in the Trash"
+        case .manual(let instructions):
+            "Manual: \(instructions)"
         }
     }
 }

@@ -342,3 +342,51 @@ func fixture(_ name: String) throws -> Data {
         #expect(FS.exists(keep))
     }
 }
+
+@Suite struct HiddenSpaceTests {
+    @Test func parsesLocalSnapshots() {
+        let text = """
+        Snapshots for disk /:
+        com.apple.TimeMachine.2025-01-10-101010.local
+        com.apple.TimeMachine.2025-01-09-090000.local
+        """
+        let items = TimeMachineSnapshotsProvider.parse(text, providerID: "tm")
+        #expect(items.count == 2)
+        #expect(items[0].detail == "com.apple.TimeMachine.2025-01-09-090000.local") // oldest first
+        #expect(items[0].command == ShellCommand("tmutil", ["deletelocalsnapshots", "2025-01-09-090000"]))
+        #expect(items[0].lastModified != nil)
+    }
+
+    @Test func readsDeviceBackupInfo() async throws {
+        let home = try TempHome()
+        let backup = try home.dir("Library/Application Support/MobileSync/Backup/00008110-ABC")
+        try home.file("Library/Application Support/MobileSync/Backup/00008110-ABC/blob", bytes: 500_000)
+        let plist: [String: Any] = ["Device Name": "Gustavo's iPhone", "Product Name": "iPhone 15", "Product Version": "18.1",
+                                    "Last Backup Date": Date(timeIntervalSince1970: 1_700_000_000)]
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: backup.appendingPathComponent("Info.plist"))
+
+        let items = try await DeviceBackupsProvider(home: home.url).scan()
+        let item = try #require(items.first)
+        #expect(item.title == "Gustavo's iPhone")
+        #expect(item.detail.hasPrefix("iPhone 15 iOS 18.1"))
+        #expect(item.safety == .review)
+        #expect(item.lastModified == Date(timeIntervalSince1970: 1_700_000_000))
+        try SafetyGuard(home: home.url).validate(backup) // backups are deletable
+    }
+
+    @Test func manualItemsAreNeverCleaned() async throws {
+        let home = try TempHome()
+        let attachments = try home.file("Library/Messages/Attachments/a/photo.heic", bytes: 2_000_000)
+        let items = try await MailMessagesProvider(home: home.url).scan()
+        let item = try #require(items.first)
+        #expect(!item.action.isActionable)
+
+        let cleaner = Cleaner(safety: SafetyGuard(home: home.url),
+                              log: CleanupLog(directory: home.url.appendingPathComponent("logs")), home: home.url,
+                              moveToTrash: { try FileManager.default.removeItem(at: $0) })
+        let report = await cleaner.clean([item], emptyTrashAfter: false)
+        #expect(report.failed.count == 1)
+        #expect(FS.exists(attachments))
+    }
+}

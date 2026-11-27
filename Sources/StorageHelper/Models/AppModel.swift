@@ -54,6 +54,12 @@ final class AppModel {
     var selectedItems: [CleanupItem] { allItems.filter { selection.contains($0.id) } }
     var selectedSize: Int64 { selectedItems.reduce(0) { $0 + $1.size } }
 
+    /// Used space that no scanned item accounts for (apps, documents, system files…).
+    var unexplainedUsed: Int64? {
+        guard let disk else { return nil }
+        return max(0, disk.used - totalReclaimable)
+    }
+
     func state(for id: String) -> ProviderState? { states.first { $0.id == id } }
 
     // MARK: Scanning
@@ -118,7 +124,7 @@ final class AppModel {
             }
             // Reset selection for this provider: pre-select only safe items.
             selection.subtract(oldIDs)
-            selection.formUnion(state.items.filter { $0.safety.isPreselected }.map(\.id))
+            selection.formUnion(state.items.filter { $0.safety.isPreselected && $0.action.isActionable }.map(\.id))
         }
     }
 
@@ -132,7 +138,7 @@ final class AppModel {
     // MARK: Selection
 
     func setSelected(_ selected: Bool, items: [CleanupItem]) {
-        let ids = items.map(\.id)
+        let ids = items.filter(\.action.isActionable).map(\.id)
         if selected { selection.formUnion(ids) } else { selection.subtract(ids) }
     }
 

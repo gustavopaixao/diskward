@@ -12,6 +12,7 @@ enum Route: Hashable {
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var route: Route? = .overview
+    @Environment(\.openWindow) private var openWindow
     @State private var showingConfirm = false
     @State private var showingFullDiskAccess = AppSettings.shouldPromptForFullDiskAccess
 
@@ -48,6 +49,10 @@ struct ContentView: View {
                 .help("Review and clean the selected items")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showRoute)) { note in
+            if let target = note.object as? Route { route = target }
+        }
+        .onAppear { MainWindow.open = { openWindow(id: "main") } }
         .sheet(isPresented: $showingFullDiskAccess) {
             FullDiskAccessSheet()
         }

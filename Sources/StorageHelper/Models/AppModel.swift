@@ -44,6 +44,42 @@ final class AppModel {
     init() {
         states = ProviderRegistry.all(nodeModulesRoots: AppSettings.nodeModulesRoots).map { ProviderState(provider: $0) }
         history = scanHistory.load()
+        AppSettings.register()
+        startMonitoring()
+    }
+
+    // MARK: Background monitoring (menu bar)
+
+    private var monitorTask: Task<Void, Never>?
+
+    /// Every 10 minutes: refresh free space, warn if low, and run a daily scan so
+    /// "What Changed" has history even if you don't open the window.
+    private func startMonitoring() {
+        monitorTask?.cancel()
+        monitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.monitorTick()
+                try? await Task.sleep(for: .seconds(600))
+            }
+        }
+    }
+
+    func monitorTick() async {
+        refreshDisk()
+        if let disk { LowSpaceNotifier.checkAndNotify(disk: disk, growth: growth(age: 86_400) ?? growth()) }
+
+        let defaults = UserDefaults.standard
+        let lastFullScan = history.last?.date ?? .distantPast
+        // lastScan != nil: the launch scan already ran, so this is a long-running session.
+        if defaults.bool(forKey: AppSettings.dailyScanKey), !isScanning, lastScan != nil,
+           Date().timeIntervalSince(lastFullScan) > 86_400 {
+            scanAll()
+        }
+    }
+
+    /// Starts the first scan once per launch (not every time the window reopens).
+    func scanIfNeeded() {
+        if lastScan == nil, !isScanning { scanAll() }
     }
 
     /// Growth between the latest scan and the one closest to `age` before it.
@@ -207,6 +243,22 @@ final class AppModel {
 }
 
 enum AppSettings {
+    static let showMenuBarKey = "showMenuBar"
+    static let lowSpaceAlertsKey = "lowSpaceAlerts"
+    static let lowSpaceThresholdGBKey = "lowSpaceThresholdGB"
+    static let dailyScanKey = "dailyBackgroundScan"
+    static let lastAlertDateKey = "lastLowSpaceAlertDate"
+    static let lastAlertFreeKey = "lastLowSpaceAlertFree"
+
+    static func register() {
+        UserDefaults.standard.register(defaults: [
+            showMenuBarKey: true,
+            lowSpaceAlertsKey: true,
+            lowSpaceThresholdGBKey: 30,
+            dailyScanKey: true,
+        ])
+    }
+
     static let nodeModulesRootsKey = "nodeModulesRoots"
     static let skipFullDiskAccessPromptKey = "skipFullDiskAccessPrompt"
 

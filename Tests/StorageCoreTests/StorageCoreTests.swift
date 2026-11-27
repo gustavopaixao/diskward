@@ -455,3 +455,22 @@ func fixture(_ name: String) throws -> Data {
         #expect(SignedBytes.string(-1_000_000_000).hasPrefix("−"))
     }
 }
+
+@Suite struct LowSpacePolicyTests {
+    let gb: Int64 = 1_000_000_000
+    let now = Date(timeIntervalSince1970: 3_000_000)
+
+    @Test func alertsOnlyBelowThreshold() {
+        let policy = LowSpacePolicy(threshold: 30 * gb)
+        #expect(!policy.shouldAlert(free: 31 * gb, lastAlert: nil, lastAlertFree: nil, now: now))
+        #expect(policy.shouldAlert(free: 29 * gb, lastAlert: nil, lastAlertFree: nil, now: now))
+    }
+
+    @Test func doesNotRepeatTooOftenUnlessMuchWorse() {
+        let policy = LowSpacePolicy(threshold: 30 * gb)
+        let oneHourAgo = now.addingTimeInterval(-3600)
+        #expect(!policy.shouldAlert(free: 19 * gb, lastAlert: oneHourAgo, lastAlertFree: 20 * gb, now: now))
+        #expect(policy.shouldAlert(free: 14 * gb, lastAlert: oneHourAgo, lastAlertFree: 20 * gb, now: now)) // dropped 30%
+        #expect(policy.shouldAlert(free: 19 * gb, lastAlert: now.addingTimeInterval(-7 * 3600), lastAlertFree: 20 * gb, now: now))
+    }
+}
